@@ -9,7 +9,7 @@ type HeaderProps = {
 
 export function Header({ cartCount }: HeaderProps) {
   return (
-    <header className="flex h-[86px] shrink-0 items-center justify-between border-b border-border-light bg-surface px-8 sm:px-14 lg:px-20">
+    <header className="flex h-21.5 shrink-0 items-center justify-between border-b border-border-light bg-surface px-8 sm:px-14 lg:px-20">
       <a href="#menu">
         <BrandLogo />
       </a>

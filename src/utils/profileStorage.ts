@@ -23,6 +23,10 @@ export function normalizeAddress(address: Partial<Address>): Address {
   };
 }
 
+export function getNextAddressId(addresses: Address[]) {
+  return Math.max(0, ...addresses.map((address) => address.id)) + 1;
+}
+
 export function readSavedProfile(): ProfileState {
   try {
     const savedProfile = window.localStorage.getItem(profileStorageKey);

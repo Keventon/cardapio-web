@@ -14,7 +14,7 @@ export function CategoryNav({
   onCategoryChange,
 }: CategoryNavProps) {
   return (
-    <section className="sticky top-0 z-30 border-b border-border bg-surface-soft/95 px-5 py-4 shadow-sm backdrop-blur transition-shadow duration-300 ease-out sm:px-8 lg:px-16">
+    <section className="sticky top-0 z-40 border-b border-border bg-surface-soft/95 px-5 py-4 shadow-[0_8px_24px_rgba(94,54,30,0.08)] backdrop-blur transition-shadow duration-300 ease-out sm:px-8 lg:px-16">
       <div className="mx-auto flex max-w-342.5 flex-col gap-4">
         <ScrollArea.Root className="min-w-0 flex-1">
           <ScrollArea.Viewport className="w-full">
