@@ -1,7 +1,7 @@
-import { BackpackIcon, PersonIcon } from "@radix-ui/react-icons";
+import { BackpackIcon } from "@radix-ui/react-icons";
 import * as Dialog from "@radix-ui/react-dialog";
 import { BrandLogo } from "../brand/BrandLogo";
-import { IconButton } from "../IconButton";
+import { ProfileDialog } from "../profile/ProfileDialog";
 
 type HeaderProps = {
   cartCount: number;
@@ -26,9 +26,7 @@ export function Header({ cartCount }: HeaderProps) {
             </span>
           </button>
         </Dialog.Trigger>
-        <IconButton label="Perfil">
-          <PersonIcon className="h-5 w-5" />
-        </IconButton>
+        <ProfileDialog />
       </div>
     </header>
   );
