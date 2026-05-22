@@ -1,1 +1,72 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap");
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+
+  --text-display: clamp(2rem, 4vw, 2.875rem);
+  --text-page-title: clamp(1.75rem, 3vw, 2.25rem);
+  --text-section-title: clamp(1.375rem, 2vw, 1.75rem);
+  --text-card-title: clamp(1.125rem, 1.4vw, 1.25rem);
+  --text-brand: clamp(1.125rem, 1.5vw, 1.375rem);
+  --text-total: 1.375rem;
+  --text-price: 1.125rem;
+  --text-body: 0.9375rem;
+  --text-body-sm: 0.875rem;
+  --text-caption: 0.75rem;
+  --text-micro: 0.6875rem;
+  --text-button: 0.875rem;
+
+  --color-primary: #ee831e;
+  --color-primary-hover: #d96e0e;
+  --color-primary-dark: #9a4d08;
+  --color-primary-deep: #8f4707;
+  --color-primary-card: #ed7f1d;
+
+  --color-accent: #c8660f;
+  --color-accent-soft: #fff2e4;
+  --color-rating: #f29b34;
+  --color-rating-text: #b56a22;
+
+  --color-surface-page: #f8eee8;
+  --color-surface-checkout: #fff7f2;
+  --color-surface: #fffaf7;
+  --color-surface-soft: #fff0e7;
+  --color-surface-hover: #fff0e1;
+  --color-surface-selected: #fff3ea;
+  --color-surface-pill: #ffe2c4;
+  --color-surface-pill-hover: #ffe8d5;
+  --color-surface-footer: #f1dbcc;
+  --color-surface-image: #f6ddbd;
+
+  --color-border: #efd9ce;
+  --color-border-light: #f1dfd4;
+  --color-border-muted: #f0ddd2;
+  --color-border-input: #e8cfc1;
+  --color-scroll-thumb: #e8b98c;
+
+  --color-text-main: #3a2820;
+  --color-text-strong: #2d211d;
+  --color-text-muted: #6d5a51;
+  --color-text-subtle: #5f5049;
+  --color-placeholder: #8b7a70;
+  --color-placeholder-muted: #b59c8e;
+
+  --color-danger: #b64a2e;
+  --color-badge-red: #ba2f22;
+  --color-hero-dark: #2d1b14;
+  --color-hero-end: #071923;
+  --color-hero-wash: #fff0dc;
+  --color-hero-glow: #f5b36d;
+}
+
+@layer base {
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+  }
+}
