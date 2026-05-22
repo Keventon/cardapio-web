@@ -8,17 +8,21 @@ import {
 } from "@radix-ui/react-icons";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Separator from "@radix-ui/react-separator";
+import { useId, useState } from "react";
 import type { ReactNode } from "react";
-import type { Product } from "../../types/menu";
+import type { AddToCartOptions, Product, ProductExtra } from "../../types/menu";
+import { formatCurrency } from "../../utils/currency";
 import { BrandLogo } from "../brand/BrandLogo";
 
 type ProductDetailDialogProps = {
   children: ReactNode;
+  onAddToCart: (product: Product, options: AddToCartOptions) => void;
   product: Product;
 };
 
 export function ProductDetailDialog({
   children,
+  onAddToCart,
   product,
 }: ProductDetailDialogProps) {
   return (
@@ -42,7 +46,7 @@ export function ProductDetailDialog({
           <div className="flex-1 overflow-y-auto">
             <div className="grid gap-8 px-5 py-6 sm:px-7 lg:grid-cols-[1.12fr_0.88fr] lg:gap-12 lg:px-12 lg:py-10">
               <ProductGallery product={product} />
-              <ProductDetails product={product} />
+              <ProductDetails onAddToCart={onAddToCart} product={product} />
             </div>
           </div>
         </Dialog.Content>
@@ -52,13 +56,15 @@ export function ProductDetailDialog({
 }
 
 function ProductGallery({ product }: { product: Product }) {
+  const [selectedImage, setSelectedImage] = useState(product.detailImageUrl);
+
   return (
     <div>
       <div className="relative aspect-[1.06] overflow-hidden rounded-lg bg-surface-image">
         <img
           alt={product.name}
           className="h-full w-full object-cover"
-          src={product.detailImageUrl}
+          src={selectedImage}
         />
         <span className="absolute left-4 top-4 rounded-full bg-white/90 px-4 py-1.5 text-caption font-extrabold text-accent shadow-sm">
           Destaque
@@ -70,9 +76,11 @@ function ProductGallery({ product }: { product: Product }) {
           <button
             aria-label={`Ver imagem ${index + 1} de ${product.name}`}
             className={`aspect-square overflow-hidden rounded-lg border bg-surface-image sm:h-20 sm:w-20 ${
-              index === 0 ? "border-primary" : "border-border-muted"
+              image === selectedImage ? "border-primary" : "border-border-muted"
             }`}
             key={image}
+            onClick={() => setSelectedImage(image)}
+            type="button"
           >
             <img alt="" className="h-full w-full object-cover" src={image} />
           </button>
@@ -82,7 +90,40 @@ function ProductGallery({ product }: { product: Product }) {
   );
 }
 
-function ProductDetails({ product }: { product: Product }) {
+function ProductDetails({
+  onAddToCart,
+  product,
+}: {
+  onAddToCart: (product: Product, options: AddToCartOptions) => void;
+  product: Product;
+}) {
+  const instructionsId = useId();
+  const [instructions, setInstructions] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [selectedExtras, setSelectedExtras] = useState<ProductExtra[]>([]);
+  const itemTotalCents =
+    (product.priceCents +
+      selectedExtras.reduce((total, extra) => total + extra.priceCents, 0)) *
+    quantity;
+
+  function toggleExtra(extra: ProductExtra) {
+    setSelectedExtras((currentExtras) => {
+      if (currentExtras.some((currentExtra) => currentExtra.name === extra.name)) {
+        return currentExtras.filter((currentExtra) => currentExtra.name !== extra.name);
+      }
+
+      return [...currentExtras, extra];
+    });
+  }
+
+  function addCurrentSelectionToCart() {
+    onAddToCart(product, {
+      extras: selectedExtras,
+      instructions,
+      quantity,
+    });
+  }
+
   return (
     <div className="flex min-h-full flex-col">
       <div className="flex items-start justify-between gap-5">
@@ -92,7 +133,7 @@ function ProductDetails({ product }: { product: Product }) {
           </Dialog.Title>
           <div className="mt-3 flex items-center gap-3">
             <strong className="text-price font-extrabold text-accent">
-              {product.price}
+              {formatCurrency(product.priceCents)}
             </strong>
             <span className="flex items-center gap-1 rounded bg-accent-soft px-2 py-1 text-caption font-bold text-rating-text">
               <StarFilledIcon className="h-3 w-3 text-rating" />
@@ -125,13 +166,19 @@ function ProductDetails({ product }: { product: Product }) {
             >
               <span className="flex items-center gap-3">
                 <input
+                  checked={selectedExtras.some(
+                    (selectedExtra) => selectedExtra.name === extra.name,
+                  )}
                   className="h-4 w-4 accent-primary"
                   name={`extra-${product.name}`}
+                  onChange={() => toggleExtra(extra)}
                   type="checkbox"
                 />
                 {extra.name}
               </span>
-              <span className="font-bold text-accent">{extra.price}</span>
+              <span className="font-bold text-accent">
+                +{formatCurrency(extra.priceCents)}
+              </span>
             </label>
           ))}
         </div>
@@ -140,14 +187,16 @@ function ProductDetails({ product }: { product: Product }) {
       <section className="mt-7">
         <label
           className="text-card-title font-extrabold text-text-strong"
-          htmlFor="instructions"
+          htmlFor={instructionsId}
         >
           Observações
         </label>
         <textarea
           className="mt-3 min-h-24 w-full resize-none rounded-lg border border-border-muted bg-white px-4 py-3 text-body-sm font-medium text-text-main outline-none transition placeholder:text-placeholder-muted focus:border-primary"
-          id="instructions"
+          id={instructionsId}
+          onChange={(event) => setInstructions(event.target.value)}
           placeholder="Ex: sem cebola, ponto da carne, molho separado..."
+          value={instructions}
         />
       </section>
 
@@ -156,24 +205,35 @@ function ProductDetails({ product }: { product: Product }) {
           <button
             aria-label="Diminuir quantidade"
             className="grid h-10 w-10 place-items-center text-primary-dark transition hover:bg-surface-hover"
+            disabled={quantity === 1}
+            onClick={() => setQuantity((currentQuantity) => Math.max(1, currentQuantity - 1))}
+            type="button"
           >
             <MinusIcon className="h-4 w-4" />
           </button>
           <span className="min-w-10 text-center text-body-sm font-extrabold text-text-main">
-            1
+            {quantity}
           </span>
           <button
             aria-label="Aumentar quantidade"
             className="grid h-10 w-10 place-items-center text-primary-dark transition hover:bg-surface-hover"
+            onClick={() => setQuantity((currentQuantity) => currentQuantity + 1)}
+            type="button"
           >
             <PlusIcon className="h-4 w-4" />
           </button>
         </div>
 
-        <button className="flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-button font-extrabold text-white transition hover:bg-primary-hover sm:min-w-55">
-          <BackpackIcon className="h-4 w-4" />
-          Adicionar ao Pedido - {product.price}
-        </button>
+        <Dialog.Close asChild>
+          <button
+            className="flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-button font-extrabold text-white transition hover:bg-primary-hover sm:min-w-55"
+            onClick={addCurrentSelectionToCart}
+            type="button"
+          >
+            <BackpackIcon className="h-4 w-4" />
+            Adicionar ao Pedido - {formatCurrency(itemTotalCents)}
+          </button>
+        </Dialog.Close>
       </div>
     </div>
   );

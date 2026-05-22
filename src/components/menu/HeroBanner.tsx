@@ -1,13 +1,14 @@
-import type { Product } from "../../types/menu";
+import type { AddToCartOptions, Product } from "../../types/menu";
 import { ProductDetailDialog } from "./ProductDetailDialog";
 
 type HeroBannerProps = {
+  onAddToCart: (product: Product, options: AddToCartOptions) => void;
   product: Product;
 };
 
-export function HeroBanner({ product }: HeroBannerProps) {
+export function HeroBanner({ onAddToCart, product }: HeroBannerProps) {
   return (
-    <ProductDetailDialog product={product}>
+    <ProductDetailDialog onAddToCart={onAddToCart} product={product}>
       <button
         aria-label={`Ver detalhes de ${product.name}`}
         className="group relative block min-h-65 w-full overflow-hidden rounded-lg bg-hero-dark text-left shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(94,54,30,0.18)] sm:min-h-80.5"

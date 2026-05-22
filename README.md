@@ -1,73 +1,32 @@
-# React + TypeScript + Vite
+# Fast Burguer | Cardápio Digital
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicação web de cardápio para hamburgueria, criada com React, TypeScript, Vite, Tailwind CSS v4, Radix UI, React Hook Form e Zod.
 
-Currently, two official plugins are available:
+## Funcionalidades
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Listagem de produtos por categoria.
+- Detalhe do produto com galeria, adicionais, observações e quantidade.
+- Carrinho funcional com incremento, decremento, remoção e total calculado.
+- Checkout com seleção de entrega/retirada, dados do cliente, endereço e pagamento.
+- Validação com React Hook Form e Zod antes da confirmação do pedido.
+- Máscara de telefone nos formulários.
+- Pagamento em dinheiro com opção de troco.
+- Perfil com dados do cliente, CEP com consulta ViaCEP e endereços persistidos em `localStorage`.
 
-## React Compiler
+## Scripts
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
+npm run lint
+npm run build
+npm run preview
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Estrutura
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- `src/data/menu.ts`: catálogo de produtos e categorias.
+- `src/types/menu.ts`: tipos compartilhados do cardápio e carrinho.
+- `src/components/menu`: cardápio, produto, carrinho e navegação de categorias.
+- `src/components/checkout`: fluxo de finalização do pedido.
+- `src/components/profile`: perfil e endereços do cliente.
+- `src/utils/currency.ts`: formatação e cálculo de valores.

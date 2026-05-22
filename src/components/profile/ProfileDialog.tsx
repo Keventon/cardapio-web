@@ -9,59 +9,204 @@ import {
 } from "@radix-ui/react-icons";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Separator from "@radix-ui/react-separator";
-import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import axios from "axios";
+import { useEffect, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import type { UseFormRegisterReturn } from "react-hook-form";
+import { z } from "zod";
+import type { Address } from "../../types/profile";
+import { formatPhone } from "../../utils/phone";
+import { formatPostalCode } from "../../utils/postalCode";
+import { readSavedProfile, writeSavedProfile } from "../../utils/profileStorage";
 
-type Address = {
-  id: number;
-  label: string;
-  street: string;
-  number: string;
-  district: string;
-  complement: string;
-  isDefault: boolean;
+const profileSchema = z.object({
+  name: z.string().trim().min(1, "Informe seu nome."),
+  phone: z
+    .string()
+    .trim()
+    .refine((value) => value.replace(/\D/g, "").length >= 10, {
+      message: "Informe um telefone válido.",
+    }),
+});
+
+const addressSchema = z.object({
+  city: z.string(),
+  complement: z.string(),
+  district: z.string().trim().min(1, "Informe o bairro."),
+  label: z.string().trim().min(1, "Informe um apelido."),
+  number: z.string().trim().min(1, "Informe o número."),
+  postalCode: z
+    .string()
+    .trim()
+    .refine((value) => value.replace(/\D/g, "").length === 8, {
+      message: "Informe um CEP válido.",
+    }),
+  state: z.string(),
+  street: z.string().trim().min(1, "Informe a rua."),
+});
+
+type ProfileForm = z.infer<typeof profileSchema>;
+type AddressForm = z.infer<typeof addressSchema>;
+
+const emptyAddressForm: AddressForm = {
+  city: "",
+  complement: "",
+  district: "",
+  label: "",
+  number: "",
+  postalCode: "",
+  state: "",
+  street: "",
 };
 
-const initialAddresses: Address[] = [
-  {
-    id: 1,
-    label: "Casa",
-    street: "Rua das Flores",
-    number: "123",
-    district: "Centro",
-    complement: "Apto 42",
-    isDefault: true,
-  },
-];
+type ViaCepResponse = {
+  bairro?: string;
+  cep?: string;
+  complemento?: string;
+  erro?: boolean;
+  localidade?: string;
+  logradouro?: string;
+  uf?: string;
+};
+
+type CepStatus = "idle" | "loading" | "found" | "not-found" | "error";
 
 export function ProfileDialog() {
-  const [name, setName] = useState("João Silva");
-  const [phone, setPhone] = useState("(11) 99999-9999");
-  const [addresses, setAddresses] = useState<Address[]>(initialAddresses);
-  const [draft, setDraft] = useState({
-    complement: "",
-    district: "",
-    label: "",
-    number: "",
-    street: "",
+  const [savedProfile] = useState(readSavedProfile);
+  const [addresses, setAddresses] = useState<Address[]>(savedProfile.addresses);
+  const [cepStatus, setCepStatus] = useState<CepStatus>("idle");
+  const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
+  const {
+    control: profileControl,
+    formState: { errors: profileErrors },
+    register: registerProfile,
+    setValue: setProfileValue,
+  } = useForm<ProfileForm>({
+    defaultValues: {
+      name: savedProfile.name,
+      phone: savedProfile.phone,
+    },
+    mode: "onChange",
+    resolver: zodResolver(profileSchema),
+  });
+  const {
+    control: addressControl,
+    formState: { errors: addressErrors },
+    handleSubmit: handleAddressSubmit,
+    register: registerAddress,
+    reset: resetAddress,
+    setValue: setAddressValue,
+  } = useForm<AddressForm>({
+    defaultValues: emptyAddressForm,
+    resolver: zodResolver(addressSchema),
+  });
+  const profileValues = useWatch({ control: profileControl });
+  const addressPostalCode = useWatch({
+    control: addressControl,
+    name: "postalCode",
   });
 
-  function addAddress() {
-    if (!draft.label.trim() || !draft.street.trim()) {
+  useEffect(() => {
+    writeSavedProfile({
+      addresses,
+      name: profileValues.name ?? "",
+      phone: profileValues.phone ?? "",
+    });
+  }, [addresses, profileValues.name, profileValues.phone]);
+
+  useEffect(() => {
+    const cepDigits = (addressPostalCode ?? "").replace(/\D/g, "");
+
+    if (cepDigits.length !== 8) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function fetchAddressByCep() {
+      setCepStatus("loading");
+
+      try {
+        const { data: address } = await axios.get<ViaCepResponse>(
+          `https://viacep.com.br/ws/${cepDigits}/json/`,
+          { signal: controller.signal },
+        );
+
+        if (address.erro) {
+          setCepStatus("not-found");
+          return;
+        }
+
+        setAddressValue("street", address.logradouro ?? "", {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        setAddressValue("district", address.bairro ?? "", {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        setAddressValue("complement", address.complemento ?? "", {
+          shouldDirty: true,
+        });
+        setAddressValue("city", address.localidade ?? "", {
+          shouldDirty: true,
+        });
+        setAddressValue("state", address.uf ?? "", {
+          shouldDirty: true,
+        });
+        setCepStatus("found");
+      } catch (error) {
+        if (axios.isCancel(error)) {
+          return;
+        }
+
+        setCepStatus("error");
+      }
+    }
+
+    fetchAddressByCep();
+
+    return () => controller.abort();
+  }, [addressPostalCode, setAddressValue]);
+
+  function saveAddress(addressForm: AddressForm) {
+    if (editingAddressId) {
+      setAddresses((currentAddresses) =>
+        currentAddresses.map((address) =>
+          address.id === editingAddressId
+            ? {
+                ...address,
+                ...addressForm,
+              }
+            : address,
+        ),
+      );
+      setEditingAddressId(null);
+      resetAddress(emptyAddressForm);
+      setCepStatus("idle");
       return;
     }
 
     setAddresses((currentAddresses) => [
       ...currentAddresses,
       {
-        ...draft,
+        ...addressForm,
         id: Date.now(),
         isDefault: currentAddresses.length === 0,
       },
     ]);
-    setDraft({ complement: "", district: "", label: "", number: "", street: "" });
+    resetAddress(emptyAddressForm);
+    setCepStatus("idle");
   }
 
   function removeAddress(id: number) {
+    if (editingAddressId === id) {
+      setEditingAddressId(null);
+      resetAddress(emptyAddressForm);
+      setCepStatus("idle");
+    }
+
     setAddresses((currentAddresses) => {
       const nextAddresses = currentAddresses.filter((address) => address.id !== id);
 
@@ -83,6 +228,26 @@ export function ProfileDialog() {
         isDefault: address.id === id,
       })),
     );
+  }
+
+  function editAddress(address: Address) {
+    setEditingAddressId(address.id);
+    resetAddress({
+      complement: address.complement,
+      city: address.city,
+      district: address.district,
+      label: address.label,
+      number: address.number,
+      postalCode: address.postalCode,
+      state: address.state,
+      street: address.street,
+    });
+  }
+
+  function cancelAddressEdit() {
+    setEditingAddressId(null);
+    resetAddress(emptyAddressForm);
+    setCepStatus("idle");
   }
 
   return (
@@ -125,16 +290,22 @@ export function ProfileDialog() {
               <h2 className="text-card-title font-extrabold text-text-strong">Dados do Cliente</h2>
               <div className="mt-4 grid gap-4">
                 <Field
-                  label="Telefone"
-                  onChange={setPhone}
-                  placeholder="(11) 99999-9999"
-                  value={phone}
+                  error={profileErrors.name?.message}
+                  label="Nome para os pedidos"
+                  placeholder="Ex: João Silva"
+                  registration={registerProfile("name")}
                 />
                 <Field
-                  label="Nome para os pedidos"
-                  onChange={setName}
-                  placeholder="Ex: João Silva"
-                  value={name}
+                  error={profileErrors.phone?.message}
+                  label="Telefone"
+                  onChange={(value) =>
+                    setProfileValue("phone", formatPhone(value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  placeholder="(11) 99999-9999"
+                  value={profileValues.phone}
                 />
               </div>
             </section>
@@ -156,6 +327,7 @@ export function ProfileDialog() {
                   <AddressCard
                     address={address}
                     key={address.id}
+                    onEdit={editAddress}
                     onRemove={removeAddress}
                     onSetDefault={setDefaultAddress}
                   />
@@ -167,50 +339,89 @@ export function ProfileDialog() {
 
             <section>
               <h2 className="text-card-title font-extrabold text-text-strong">
-                Adicionar Endereço
+                {editingAddressId ? "Editar Endereço" : "Adicionar Endereço"}
               </h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field
+                  className="sm:col-span-2"
+                  error={addressErrors.postalCode?.message}
+                  label="CEP"
+                  onChange={(value) =>
+                    {
+                      if (value.replace(/\D/g, "").length !== 8) {
+                        setCepStatus("idle");
+                      }
+
+                      setAddressValue("postalCode", formatPostalCode(value), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                  }
+                  placeholder="00000-000"
+                  value={addressPostalCode}
+                />
+                <CepFeedback status={cepStatus} />
+                <Field
+                  error={addressErrors.label?.message}
                   label="Apelido"
-                  onChange={(value) => setDraft((current) => ({ ...current, label: value }))}
                   placeholder="Casa, trabalho..."
-                  value={draft.label}
+                  registration={registerAddress("label")}
                 />
                 <Field
+                  error={addressErrors.district?.message}
                   label="Bairro"
-                  onChange={(value) => setDraft((current) => ({ ...current, district: value }))}
                   placeholder="Centro"
-                  value={draft.district}
+                  registration={registerAddress("district")}
                 />
                 <Field
                   className="sm:col-span-2"
+                  error={addressErrors.street?.message}
                   label="Rua/Avenida"
-                  onChange={(value) => setDraft((current) => ({ ...current, street: value }))}
                   placeholder="Rua das Flores"
-                  value={draft.street}
+                  registration={registerAddress("street")}
                 />
                 <Field
+                  error={addressErrors.number?.message}
                   label="Número"
-                  onChange={(value) => setDraft((current) => ({ ...current, number: value }))}
                   placeholder="123"
-                  value={draft.number}
+                  registration={registerAddress("number")}
                 />
                 <Field
                   label="Complemento"
-                  onChange={(value) => setDraft((current) => ({ ...current, complement: value }))}
                   placeholder="Apto, bloco..."
-                  value={draft.complement}
+                  registration={registerAddress("complement")}
+                />
+                <Field
+                  label="Cidade"
+                  placeholder="Cidade"
+                  registration={registerAddress("city")}
+                />
+                <Field
+                  label="UF"
+                  placeholder="UF"
+                  registration={registerAddress("state")}
                 />
               </div>
 
               <button
                 className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover"
-                onClick={addAddress}
+                onClick={handleAddressSubmit(saveAddress)}
                 type="button"
               >
                 <PlusIcon className="h-4 w-4" />
-                Salvar endereço
+                {editingAddressId ? "Atualizar endereço" : "Salvar endereço"}
               </button>
+
+              {editingAddressId ? (
+                <button
+                  className="mt-3 h-11 w-full rounded-lg border border-border-input bg-white text-button font-extrabold text-text-muted transition hover:bg-surface-checkout"
+                  onClick={cancelAddressEdit}
+                  type="button"
+                >
+                  Cancelar edição
+                </button>
+              ) : null}
             </section>
           </div>
         </Dialog.Content>
@@ -221,36 +432,77 @@ export function ProfileDialog() {
 
 function Field({
   className = "",
+  error,
   label,
   onChange,
   placeholder,
+  registration,
   value,
 }: {
   className?: string;
+  error?: string;
   label: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   placeholder: string;
-  value: string;
+  registration?: UseFormRegisterReturn;
+  value?: string;
 }) {
   return (
     <label className={`block ${className}`}>
       <span className="mb-2 block text-caption font-extrabold text-text-strong">{label}</span>
       <input
-        className="h-12 w-full rounded-lg border border-border-input bg-surface px-4 text-body-sm font-medium text-text-strong outline-none transition placeholder:text-placeholder focus:border-primary focus:bg-white"
-        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={error ? "true" : "false"}
+        className="h-12 w-full rounded-lg border border-border-input bg-surface px-4 text-body-sm font-medium text-text-strong outline-none transition placeholder:text-placeholder focus:border-primary focus:bg-white aria-[invalid=true]:border-danger"
         placeholder={placeholder}
+        {...registration}
+        onChange={(event) => {
+          registration?.onChange(event);
+          onChange?.(event.target.value);
+        }}
         value={value}
       />
+      {error ? (
+        <span className="mt-2 block text-caption font-bold text-danger">
+          {error}
+        </span>
+      ) : null}
     </label>
+  );
+}
+
+function CepFeedback({ status }: { status: CepStatus }) {
+  if (status === "idle") {
+    return null;
+  }
+
+  const feedback = {
+    error: "Não foi possível consultar o CEP agora.",
+    found: "Endereço preenchido automaticamente.",
+    loading: "Buscando endereço...",
+    "not-found": "CEP não encontrado.",
+  }[status];
+
+  return (
+    <p
+      className={`-mt-2 text-caption font-bold sm:col-span-2 ${
+        status === "found" || status === "loading"
+          ? "text-primary-dark"
+          : "text-danger"
+      }`}
+    >
+      {feedback}
+    </p>
   );
 }
 
 function AddressCard({
   address,
+  onEdit,
   onRemove,
   onSetDefault,
 }: {
   address: Address;
+  onEdit: (address: Address) => void;
   onRemove: (id: number) => void;
   onSetDefault: (id: number) => void;
 }) {
@@ -267,10 +519,18 @@ function AddressCard({
             ) : null}
           </div>
           <p className="mt-2 text-body-sm font-medium leading-relaxed text-text-muted">
+            {address.postalCode ? `${address.postalCode}` : "CEP não informado"}
+            <br />
             {address.street}, {address.number}
             {address.complement ? ` - ${address.complement}` : ""}
             <br />
             {address.district}
+            {address.city || address.state ? (
+              <>
+                <br />
+                {[address.city, address.state].filter(Boolean).join(" - ")}
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -280,6 +540,7 @@ function AddressCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           className="flex h-9 items-center gap-2 rounded-full border border-border-input px-3 text-caption font-extrabold text-text-muted transition hover:bg-surface-checkout"
+          onClick={() => onEdit(address)}
           type="button"
         >
           <Pencil1Icon className="h-3.5 w-3.5" />

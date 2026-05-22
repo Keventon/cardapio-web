@@ -1,16 +1,18 @@
 import { PlusIcon, StarFilledIcon } from "@radix-ui/react-icons";
-import type { Product } from "../../types/menu";
+import type { AddToCartOptions, Product } from "../../types/menu";
+import { formatCurrency } from "../../utils/currency";
 import { ProductDetailDialog } from "./ProductDetailDialog";
 
 type ProductCardProps = {
+  onAddToCart: (product: Product, options: AddToCartOptions) => void;
   product: Product;
 };
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ onAddToCart, product }: ProductCardProps) {
   const BadgeIcon = product.badgeIcon;
 
   return (
-    <ProductDetailDialog product={product}>
+    <ProductDetailDialog onAddToCart={onAddToCart} product={product}>
       <button
         aria-label={`Ver detalhes de ${product.name}`}
         className="overflow-hidden rounded-lg bg-white text-left shadow-[0_10px_28px_rgba(94,54,30,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(94,54,30,0.16)]"
@@ -45,7 +47,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
           <div className="mt-7 flex items-center justify-between">
             <strong className="text-price font-extrabold text-accent">
-              {product.price}
+              {formatCurrency(product.priceCents)}
             </strong>
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary-card text-white shadow-sm">
               <PlusIcon className="h-5 w-5" />

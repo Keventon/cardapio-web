@@ -1,12 +1,17 @@
-import type { MenuCategory, Product } from "../../types/menu";
+import type { AddToCartOptions, MenuCategory, Product } from "../../types/menu";
 import { ProductCard } from "./ProductCard";
 
 type PopularSectionProps = {
   categories: MenuCategory[];
+  onAddToCart: (product: Product, options: AddToCartOptions) => void;
   products: Product[];
 };
 
-export function PopularSection({ categories, products }: PopularSectionProps) {
+export function PopularSection({
+  categories,
+  onAddToCart,
+  products,
+}: PopularSectionProps) {
   const productSections = categories
     .filter((category) => category.id !== "all")
     .map((category) => ({
@@ -38,7 +43,11 @@ export function PopularSection({ categories, products }: PopularSectionProps) {
 
             <div className="grid gap-7 md:grid-cols-2 xl:grid-cols-3">
               {section.products.map((product) => (
-                <ProductCard product={product} key={product.name} />
+                <ProductCard
+                  key={product.id}
+                  onAddToCart={onAddToCart}
+                  product={product}
+                />
               ))}
             </div>
           </section>

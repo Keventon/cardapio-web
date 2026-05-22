@@ -18,11 +18,12 @@ export type ProductCategory =
   | "desserts";
 
 export type Product = {
+  id: string;
   category: ProductCategory;
   name: string;
   description: string;
   fullDescription: string;
-  price: string;
+  priceCents: number;
   rating: string;
   badgeColor: string;
   badgeIcon: IconComponent;
@@ -33,12 +34,21 @@ export type Product = {
 };
 
 export type OrderItem = {
+  id: string;
   quantity: number;
   name: string;
-  price: string;
+  unitPriceCents: number;
+  extras: ProductExtra[];
+  instructions: string;
 };
 
 export type ProductExtra = {
   name: string;
-  price: string;
+  priceCents: number;
+};
+
+export type AddToCartOptions = {
+  extras: ProductExtra[];
+  instructions: string;
+  quantity: number;
 };

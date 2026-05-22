@@ -57,9 +57,16 @@ function CategoryButton({
     event.preventDefault();
     onCategoryChange(category.id);
 
-    document.getElementById(targetId)?.scrollIntoView({
+    const target = document.getElementById(targetId);
+
+    if (!target) {
+      return;
+    }
+
+    window.scrollTo({
       behavior: "smooth",
-      block: "start",
+      left: 0,
+      top: target.getBoundingClientRect().top + window.scrollY - 112,
     });
   }
 

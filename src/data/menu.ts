@@ -7,7 +7,7 @@ import { BurgerIcon } from "../components/icons/BurgerIcon";
 import { ComboIcon } from "../components/icons/ComboIcon";
 import { DrinkIcon } from "../components/icons/DrinkIcon";
 import { MilkshakeIcon } from "../components/icons/MilkshakeIcon";
-import type { IconComponent, MenuCategory, OrderItem, Product, ProductCategory } from "../types/menu";
+import type { IconComponent, MenuCategory, Product, ProductCategory } from "../types/menu";
 
 const categoryDetails: Record<ProductCategory, { icon: IconComponent; label: string }> = {
   burgers: { icon: BurgerIcon, label: "Hambúrgueres" },
@@ -29,12 +29,13 @@ const categoryOrder: ProductCategory[] = [
 
 export const products: Product[] = [
   {
+    id: "smash-classico",
     category: "burgers",
     name: "Smash Clássico",
     description: "Blend bovino prensado, cheddar, picles e molho especial...",
     fullDescription:
       "Hambúrguer smash com blend bovino prensado na chapa, cheddar cremoso, picles crocante, cebola roxa e molho especial da casa no pão brioche tostado.",
-    price: "R$ 28,90",
+    priceCents: 2890,
     rating: "4.9",
     badgeColor: "bg-white text-amber-500",
     badgeIcon: BurgerIcon,
@@ -48,18 +49,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1553979459-d2229ba7433b?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Cheddar extra", price: "+R$ 4,00" },
-      { name: "Bacon crocante", price: "+R$ 5,00" },
-      { name: "Carne extra", price: "+R$ 9,00" },
+      { name: "Cheddar extra", priceCents: 400 },
+      { name: "Bacon crocante", priceCents: 500 },
+      { name: "Carne extra", priceCents: 900 },
     ],
   },
   {
+    id: "bacon-crispy",
     category: "burgers",
     name: "Bacon Crispy",
     description: "Burger alto, bacon em tiras, cebola crispy e barbecue...",
     fullDescription:
       "Hambúrguer artesanal com blend alto, queijo cheddar, bacon em tiras, cebola crispy e barbecue defumado no pão brioche.",
-    price: "R$ 34,90",
+    priceCents: 3490,
     rating: "4.8",
     badgeColor: "bg-red-500 text-white",
     badgeIcon: BurgerIcon,
@@ -73,18 +75,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Bacon extra", price: "+R$ 6,00" },
-      { name: "Onion rings no burger", price: "+R$ 5,00" },
-      { name: "Molho barbecue extra", price: "+R$ 2,50" },
+      { name: "Bacon extra", priceCents: 600 },
+      { name: "Onion rings no burger", priceCents: 500 },
+      { name: "Molho barbecue extra", priceCents: 250 },
     ],
   },
   {
+    id: "chicken-ranch",
     category: "burgers",
     name: "Chicken Ranch",
     description: "Frango crocante, queijo prato, alface e molho ranch...",
     fullDescription:
       "Sanduíche de frango empanado crocante com queijo prato, alface fresca, tomate e molho ranch no pão macio.",
-    price: "R$ 29,90",
+    priceCents: 2990,
     rating: "4.7",
     badgeColor: "bg-emerald-600 text-white",
     badgeIcon: BurgerIcon,
@@ -98,18 +101,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1585238342028-4bbc8a2f03bc?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Queijo extra", price: "+R$ 4,00" },
-      { name: "Molho ranch extra", price: "+R$ 2,50" },
-      { name: "Jalapeño", price: "+R$ 3,00" },
+      { name: "Queijo extra", priceCents: 400 },
+      { name: "Molho ranch extra", priceCents: 250 },
+      { name: "Jalapeño", priceCents: 300 },
     ],
   },
   {
+    id: "combo-smash",
     category: "combos",
     name: "Combo Smash",
     description: "Smash Clássico, batata frita crocante e refrigerante lata...",
     fullDescription:
       "Combo com Smash Clássico, porção individual de batata frita crocante e refrigerante lata gelado.",
-    price: "R$ 42,90",
+    priceCents: 4290,
     rating: "4.9",
     badgeColor: "bg-white text-amber-500",
     badgeIcon: ComboIcon,
@@ -123,18 +127,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Batata grande", price: "+R$ 6,00" },
-      { name: "Trocar por milkshake", price: "+R$ 9,00" },
-      { name: "Molho da casa", price: "+R$ 2,50" },
+      { name: "Batata grande", priceCents: 600 },
+      { name: "Trocar por milkshake", priceCents: 900 },
+      { name: "Molho da casa", priceCents: 250 },
     ],
   },
   {
+    id: "combo-bacon-crispy",
     category: "combos",
     name: "Combo Bacon Crispy",
     description: "Bacon Crispy, batata canoa e bebida à escolha...",
     fullDescription:
       "Combo com Bacon Crispy, batata canoa temperada e bebida à escolha para uma refeição completa.",
-    price: "R$ 49,90",
+    priceCents: 4990,
     rating: "4.8",
     badgeColor: "bg-red-500 text-white",
     badgeIcon: ComboIcon,
@@ -148,18 +153,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Bacon extra", price: "+R$ 6,00" },
-      { name: "Bebida 600ml", price: "+R$ 5,00" },
-      { name: "Cheddar na batata", price: "+R$ 7,00" },
+      { name: "Bacon extra", priceCents: 600 },
+      { name: "Bebida 600ml", priceCents: 500 },
+      { name: "Cheddar na batata", priceCents: 700 },
     ],
   },
   {
+    id: "batata-frita",
     category: "sides",
     name: "Batata Frita",
     description: "Batata sequinha, sal na medida e molho da casa...",
     fullDescription:
       "Porção de batata frita crocante, finalizada com sal fino e acompanhada de molho especial da casa.",
-    price: "R$ 16,90",
+    priceCents: 1690,
     rating: "4.7",
     badgeColor: "bg-white text-amber-500",
     badgeIcon: BackpackIcon,
@@ -173,18 +179,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1576107232684-1279f390859f?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Cheddar cremoso", price: "+R$ 6,00" },
-      { name: "Bacon picado", price: "+R$ 6,00" },
-      { name: "Molho extra", price: "+R$ 2,50" },
+      { name: "Cheddar cremoso", priceCents: 600 },
+      { name: "Bacon picado", priceCents: 600 },
+      { name: "Molho extra", priceCents: 250 },
     ],
   },
   {
+    id: "refrigerante-lata",
     category: "drinks",
     name: "Refrigerante Lata",
     description: "Lata 350ml bem gelada nos sabores disponíveis...",
     fullDescription:
       "Refrigerante lata 350ml gelado. Escolha entre cola, guaraná, limão ou laranja conforme disponibilidade.",
-    price: "R$ 7,90",
+    priceCents: 790,
     rating: "4.6",
     badgeColor: "bg-emerald-600 text-white",
     badgeIcon: DrinkIcon,
@@ -198,18 +205,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1527960471264-932f39eb5846?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Copo com gelo", price: "+R$ 1,00" },
-      { name: "Limão", price: "+R$ 1,00" },
-      { name: "Trocar por 600ml", price: "+R$ 5,00" },
+      { name: "Copo com gelo", priceCents: 100 },
+      { name: "Limão", priceCents: 100 },
+      { name: "Trocar por 600ml", priceCents: 500 },
     ],
   },
   {
+    id: "suco-natural",
     category: "drinks",
     name: "Suco Natural",
     description: "Suco natural de laranja, limão ou abacaxi com hortelã...",
     fullDescription:
       "Suco natural preparado na hora, disponível em laranja, limão ou abacaxi com hortelã.",
-    price: "R$ 11,90",
+    priceCents: 1190,
     rating: "4.8",
     badgeColor: "bg-emerald-600 text-white",
     badgeIcon: DrinkIcon,
@@ -223,18 +231,19 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Sem açúcar", price: "+R$ 0,00" },
-      { name: "Gengibre", price: "+R$ 1,50" },
-      { name: "Copo grande", price: "+R$ 3,00" },
+      { name: "Sem açúcar", priceCents: 0 },
+      { name: "Gengibre", priceCents: 150 },
+      { name: "Copo grande", priceCents: 300 },
     ],
   },
   {
+    id: "milkshake-chocolate",
     category: "milkshakes",
     name: "Milkshake Chocolate",
     description: "Milkshake cremoso de chocolate com chantilly...",
     fullDescription:
       "Milkshake cremoso de chocolate batido com sorvete, calda e finalizado com chantilly.",
-    price: "R$ 18,90",
+    priceCents: 1890,
     rating: "4.9",
     badgeColor: "bg-white text-amber-500",
     badgeIcon: MilkshakeIcon,
@@ -248,9 +257,9 @@ export const products: Product[] = [
       "https://images.unsplash.com/photo-1590080875852-ba44f83ff2db?auto=format&fit=crop&w=360&q=85",
     ],
     extras: [
-      { name: "Calda extra", price: "+R$ 2,50" },
-      { name: "Ovomaltine", price: "+R$ 4,00" },
-      { name: "Chantilly extra", price: "+R$ 3,00" },
+      { name: "Calda extra", priceCents: 250 },
+      { name: "Ovomaltine", priceCents: 400 },
+      { name: "Chantilly extra", priceCents: 300 },
     ],
   },
 ];
@@ -265,11 +274,3 @@ export const categories: MenuCategory[] = [
       icon: categoryDetails[category].icon,
     })),
 ];
-
-export const orderItems: OrderItem[] = [
-  { quantity: 1, name: "Smash Clássico", price: "R$ 28,90" },
-  { quantity: 1, name: "Combo Bacon Crispy", price: "R$ 49,90" },
-  { quantity: 2, name: "Refrigerante Lata", price: "R$ 15,80" },
-];
-
-export const orderTotal = "R$ 94,60";
