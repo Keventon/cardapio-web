@@ -201,10 +201,10 @@ function ProductDetails({
       </section>
 
       <div className="mt-8 flex flex-col gap-4 sm:mt-auto sm:flex-row sm:items-center sm:justify-between sm:pt-8">
-        <div className="flex w-fit items-center rounded-full border border-border bg-white">
+        <div className="flex w-fit items-center overflow-hidden rounded-full border border-border bg-white">
           <button
             aria-label="Diminuir quantidade"
-            className="grid h-10 w-10 place-items-center text-primary-dark transition hover:bg-surface-hover"
+            className="grid h-10 w-10 place-items-center rounded-l-full text-primary-dark transition hover:bg-surface-hover"
             disabled={quantity === 1}
             onClick={() => setQuantity((currentQuantity) => Math.max(1, currentQuantity - 1))}
             type="button"
@@ -216,7 +216,7 @@ function ProductDetails({
           </span>
           <button
             aria-label="Aumentar quantidade"
-            className="grid h-10 w-10 place-items-center text-primary-dark transition hover:bg-surface-hover"
+            className="grid h-10 w-10 place-items-center rounded-r-full text-primary-dark transition hover:bg-surface-hover"
             onClick={() => setQuantity((currentQuantity) => currentQuantity + 1)}
             type="button"
           >

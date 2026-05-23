@@ -171,10 +171,10 @@ function CartItem({
       ) : null}
 
       <div className="mt-4 flex items-center justify-between">
-        <div className="flex items-center rounded-full border border-border bg-surface">
+        <div className="flex items-center overflow-hidden rounded-full border border-border bg-surface">
           <button
             aria-label={`Diminuir quantidade de ${item.name}`}
-            className="grid h-8 w-8 place-items-center text-primary-dark transition hover:bg-surface-hover"
+            className="grid h-8 w-8 place-items-center rounded-l-full text-primary-dark transition hover:bg-surface-hover"
             onClick={() => onDecrement(item.id)}
             type="button"
           >
@@ -185,7 +185,7 @@ function CartItem({
           </span>
           <button
             aria-label={`Aumentar quantidade de ${item.name}`}
-            className="grid h-8 w-8 place-items-center text-primary-dark transition hover:bg-surface-hover"
+            className="grid h-8 w-8 place-items-center rounded-r-full text-primary-dark transition hover:bg-surface-hover"
             onClick={() => onIncrement(item.id)}
             type="button"
           >

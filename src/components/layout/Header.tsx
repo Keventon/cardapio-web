@@ -21,7 +21,7 @@ export function Header({ cartCount }: HeaderProps) {
             className="relative grid h-10 w-10 place-items-center rounded-full transition hover:bg-surface-hover"
           >
             <BackpackIcon className="h-5 w-5" />
-            <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-micro font-extrabold text-white">
+            <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-micro font-extrabold leading-none text-white">
               {cartCount}
             </span>
           </button>
