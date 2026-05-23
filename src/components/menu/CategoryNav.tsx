@@ -11,6 +11,9 @@ import type { MenuCategory } from "../../types/menu";
 import { BrandLogo } from "../brand/BrandLogo";
 import { ProfileDialog } from "../profile/ProfileDialog";
 
+const COMPACT_HEADER_SCROLL_START = 190;
+const FULL_HEADER_SCROLL_RESTORE = 90;
+
 type CategoryNavProps = {
   activeCategory: MenuCategory["id"];
   cartCount: number;
@@ -34,7 +37,13 @@ export function CategoryNav({
 
   useEffect(() => {
     function handleScroll() {
-      setIsCompact(window.scrollY > 160);
+      setIsCompact((currentIsCompact) => {
+        if (currentIsCompact) {
+          return window.scrollY > FULL_HEADER_SCROLL_RESTORE;
+        }
+
+        return window.scrollY > COMPACT_HEADER_SCROLL_START;
+      });
     }
 
     handleScroll();
