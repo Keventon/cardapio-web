@@ -15,8 +15,27 @@ Aplicação web de cardápio para hamburgueria, criada com React, TypeScript, Vi
 
 ## Scripts
 
+Instale os pacotes:
+
+```bash
+npm ci
+```
+
+Depois rode o projeto em modo de desenvolvimento:
+
 ```bash
 npm run dev
+```
+
+Abra no navegador:
+
+```text
+http://localhost:5173
+```
+
+Outros comandos disponíveis:
+
+```bash
 npm run lint
 npm run build
 npm run preview
