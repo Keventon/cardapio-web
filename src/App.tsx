@@ -8,6 +8,8 @@ import { CategoryNav } from "./components/menu/CategoryNav";
 import { FloatingCartButton } from "./components/menu/FloatingCartButton";
 import { HeroBanner } from "./components/menu/HeroBanner";
 import { PopularSection } from "./components/menu/PopularSection";
+import { StoreLoginPage } from "./components/store/StoreLoginPage";
+import { StoreOrdersPage } from "./components/store/StoreOrdersPage";
 import { categories, products } from "./data/menu";
 import { useActiveCategory } from "./hooks/useActiveCategory";
 import {
@@ -15,17 +17,23 @@ import {
   selectCartTotalCents,
   useCartStore,
 } from "./stores/cartStore";
+import { readStoreSession } from "./utils/storeAuth";
+
+type AppRoute = "menu" | "store";
 
 function App() {
+  const [appRoute, setAppRoute] = useState<AppRoute>(getCurrentRoute);
   const [currentScreen, setCurrentScreen] = useState<"menu" | "checkout">(
     "menu",
   );
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFloatingCart, setShowFloatingCart] = useState(false);
+  const [isStoreAuthenticated, setIsStoreAuthenticated] =
+    useState(readStoreSession);
   const { activeCategory, setActiveCategory } = useActiveCategory({
     categories,
-    enabled: !isLoading && currentScreen === "menu",
+    enabled: !isLoading && appRoute === "menu" && currentScreen === "menu",
   });
   const addToCart = useCartStore((state) => state.addItem);
   const cartCount = useCartStore(selectCartCount);
@@ -54,6 +62,17 @@ function App() {
   }, []);
 
   useEffect(() => {
+    function handleRouteChange() {
+      setAppRoute(getCurrentRoute());
+      setCurrentScreen("menu");
+    }
+
+    window.addEventListener("popstate", handleRouteChange);
+
+    return () => window.removeEventListener("popstate", handleRouteChange);
+  }, []);
+
+  useEffect(() => {
     function handleScroll() {
       setShowFloatingCart(window.scrollY > 220);
     }
@@ -66,6 +85,26 @@ function App() {
 
   if (isLoading) {
     return <LoadingScreen />;
+  }
+
+  if (appRoute === "store") {
+    const navigateToMenu = () => navigateTo("/", setAppRoute);
+
+    if (!isStoreAuthenticated) {
+      return (
+        <StoreLoginPage
+          onAuthenticated={() => setIsStoreAuthenticated(true)}
+          onBackToMenu={navigateToMenu}
+        />
+      );
+    }
+
+    return (
+      <StoreOrdersPage
+        onBackToMenu={navigateToMenu}
+        onLogout={() => setIsStoreAuthenticated(false)}
+      />
+    );
   }
 
   if (currentScreen === "checkout") {
@@ -124,6 +163,16 @@ function App() {
       </CartDrawer>
     </Tooltip.Provider>
   );
+}
+
+function getCurrentRoute(): AppRoute {
+  return window.location.pathname === "/loja" ? "store" : "menu";
+}
+
+function navigateTo(path: string, setAppRoute: (route: AppRoute) => void) {
+  window.history.pushState(null, "", path);
+  setAppRoute(getCurrentRoute());
+  window.scrollTo({ left: 0, top: 0 });
 }
 
 function normalizeSearchText(value: string) {

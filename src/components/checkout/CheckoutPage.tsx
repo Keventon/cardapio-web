@@ -24,6 +24,10 @@ import { useCepLookup } from "../../hooks/useCepLookup";
 import type { OrderItem } from "../../types/menu";
 import type { Address } from "../../types/profile";
 import { formatCurrencyInput } from "../../utils/currency";
+import {
+  addStoreOrder,
+  createStoreOrderFromCheckout,
+} from "../../utils/orderStorage";
 import { formatPhone } from "../../utils/phone";
 import { formatPostalCode } from "../../utils/postalCode";
 import {
@@ -48,6 +52,7 @@ export function CheckoutPage({
 }: CheckoutPageProps) {
   const [savedProfile, setSavedProfile] = useState(readSavedProfile);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [submittedForm, setSubmittedForm] = useState<CheckoutForm | null>(null);
   const checkoutValidationSchema = useMemo(
     () => createCheckoutSchema(totalCents),
     [totalCents],
@@ -189,7 +194,23 @@ export function CheckoutPage({
       setSavedProfile(readSavedProfile());
     }
 
+    setSubmittedForm(form);
     setIsConfirmOpen(true);
+  }
+
+  function confirmOrder() {
+    if (!submittedForm) {
+      return;
+    }
+
+    addStoreOrder(
+      createStoreOrderFromCheckout({
+        form: submittedForm,
+        items,
+        totalCents,
+      }),
+    );
+    onOrderConfirmed();
   }
 
   return (
@@ -455,7 +476,7 @@ export function CheckoutPage({
       </form>
 
       <ConfirmOrderDialog
-        onConfirm={onOrderConfirmed}
+        onConfirm={confirmOrder}
         onOpenChange={setIsConfirmOpen}
         open={isConfirmOpen}
         totalCents={totalCents}
