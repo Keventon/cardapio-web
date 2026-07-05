@@ -1,18 +1,66 @@
-import type { OrderItem } from "./menu";
+export type OrderStatus =
+  | "PENDING"
+  | "PREPARING"
+  | "READY"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
+  | "COMPLETED"
+  | "CANCELED"
+  | "REJECTED";
 
-export type StoreOrderStatus = "pending" | "preparing" | "ready" | "finished";
+export type PaymentMethod =
+  | "CASH"
+  | "PIX"
+  | "CREDIT_CARD"
+  | "DEBIT_CARD"
+  | "MEAL_VOUCHER";
+
+export type FulfillmentType = "DELIVERY" | "PICKUP";
+
+export type StoreOrderClient = {
+  id: string;
+  name: string;
+  phone: string;
+};
+
+export type StoreOrderItem = {
+  id: string;
+  observation: string | null;
+  orderId: string;
+  product: { name: string };
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type StoreOrderAddress = {
+  city: string;
+  complement: string | null;
+  neighborhood: string;
+  number: string;
+  postalCode: string;
+  reference: string | null;
+  state: string;
+  street: string;
+};
 
 export type StoreOrder = {
-  addressLine: string;
-  cashChangeFor: string;
+  address: StoreOrderAddress | null;
+  changeFor: number | null;
+  client: StoreOrderClient;
+  clientId: string;
   createdAt: string;
-  customerName: string;
-  customerPhone: string;
-  fulfillment: "delivery" | "pickup";
+  discount: number;
+  deliveryFee: number;
+  fulfillmentType: FulfillmentType;
   id: string;
-  items: OrderItem[];
+  items: StoreOrderItem[];
   number: number;
-  payment: "card" | "pix" | "cash";
-  status: StoreOrderStatus;
-  totalCents: number;
+  observation: string | null;
+  paymentMethod: PaymentMethod;
+  status: OrderStatus;
+  storeId: string;
+  subtotal: number;
+  total: number;
+  updateAt: string;
 };

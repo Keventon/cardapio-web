@@ -1,36 +1,47 @@
 import { BackpackIcon, LockClosedIcon, PersonIcon } from "@radix-ui/react-icons";
+import axios from "axios";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { BrandLogo } from "../brand/BrandLogo";
-import {
-  storeCredentials,
-  validateStoreCredentials,
-  writeStoreSession,
-} from "../../utils/storeAuth";
+import { loginStoreUser } from "../../services/storeApi";
+import { useStoreAuthStore } from "../../stores/storeAuthStore";
 
 type StoreLoginPageProps = {
+  justRegistered?: boolean;
   onBackToMenu: () => void;
   onAuthenticated: () => void;
+  onGoToSignUp: () => void;
 };
 
 export function StoreLoginPage({
+  justRegistered = false,
   onBackToMenu,
   onAuthenticated,
+  onGoToSignUp,
 }: StoreLoginPageProps) {
-  const [login, setLogin] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setIsSubmitting(true);
 
-    if (!validateStoreCredentials(login, password)) {
-      setError("Login ou senha da loja inválidos.");
-      return;
+    try {
+      const { storeUser, token } = await loginStoreUser(email, password);
+
+      useStoreAuthStore.getState().setAuth({ storeUser, token });
+      onAuthenticated();
+    } catch (submitError) {
+      if (axios.isAxiosError(submitError) && submitError.response?.status === 401) {
+        setError("Login ou senha da loja inválidos.");
+      } else {
+        setError("Não foi possível conectar. Tente novamente.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    writeStoreSession();
-    onAuthenticated();
   }
 
   return (
@@ -74,6 +85,12 @@ export function StoreLoginPage({
             Entre para visualizar e atualizar os pedidos recebidos.
           </p>
 
+          {justRegistered ? (
+            <p className="mt-4 rounded-lg bg-emerald-100 px-4 py-3 text-caption font-bold text-emerald-700">
+              Conta criada! Faça login para continuar.
+            </p>
+          ) : null}
+
           <label className="mt-7 block">
             <span className="mb-2 block text-caption font-extrabold text-text-strong">
               Login
@@ -83,12 +100,12 @@ export function StoreLoginPage({
               <input
                 className="h-12 w-full rounded-lg border border-border-input bg-surface px-12 text-body-sm font-medium text-text-strong outline-none transition placeholder:text-placeholder focus:border-primary focus:bg-white"
                 onChange={(event) => {
-                  setLogin(event.target.value);
+                  setEmail(event.target.value);
                   setError("");
                 }}
-                placeholder={storeCredentials.login}
+                placeholder="email@loja.com"
                 type="email"
-                value={login}
+                value={email}
               />
             </span>
           </label>
@@ -117,10 +134,19 @@ export function StoreLoginPage({
           ) : null}
 
           <button
-            className="mt-6 h-12 w-full rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover"
+            className="mt-6 h-12 w-full rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:opacity-60"
+            disabled={isSubmitting}
             type="submit"
           >
-            Entrar no painel
+            {isSubmitting ? "Entrando..." : "Entrar no painel"}
+          </button>
+
+          <button
+            className="mt-3 h-11 w-full rounded-lg border border-border-input bg-white text-button font-extrabold text-primary-dark transition hover:bg-surface-hover"
+            onClick={onGoToSignUp}
+            type="button"
+          >
+            Criar conta da loja
           </button>
         </form>
       </div>

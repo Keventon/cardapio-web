@@ -1,10 +1,28 @@
 import type { CheckoutForm } from "../forms/checkoutForm";
 import type { OrderItem } from "../types/menu";
-import type { StoreOrder, StoreOrderStatus } from "../types/storeOrder";
 
 export const storeOrdersStorageKey = "fast-burguer-store-orders";
 
-const demoOrders: StoreOrder[] = [
+// Mock order shape used only by the (still disconnected) client checkout demo —
+// unrelated to the real API's StoreOrder in types/storeOrder.ts.
+export type MockStoreOrderStatus = "pending" | "preparing" | "ready" | "finished";
+
+export type MockStoreOrder = {
+  addressLine: string;
+  cashChangeFor: string;
+  createdAt: string;
+  customerName: string;
+  customerPhone: string;
+  fulfillment: "delivery" | "pickup";
+  id: string;
+  items: OrderItem[];
+  number: number;
+  payment: "card" | "pix" | "cash";
+  status: MockStoreOrderStatus;
+  totalCents: number;
+};
+
+const demoOrders: MockStoreOrder[] = [
   {
     addressLine: "Rua das Flores, 123 - Centro",
     cashChangeFor: "",
@@ -61,7 +79,7 @@ const demoOrders: StoreOrder[] = [
   },
 ];
 
-export function readStoreOrders(): StoreOrder[] {
+export function readStoreOrders(): MockStoreOrder[] {
   try {
     const savedOrders = window.localStorage.getItem(storeOrdersStorageKey);
 
@@ -69,7 +87,7 @@ export function readStoreOrders(): StoreOrder[] {
       return demoOrders;
     }
 
-    const parsedOrders = JSON.parse(savedOrders) as StoreOrder[];
+    const parsedOrders = JSON.parse(savedOrders) as MockStoreOrder[];
 
     return parsedOrders.map(normalizeStoreOrder);
   } catch {
@@ -77,17 +95,17 @@ export function readStoreOrders(): StoreOrder[] {
   }
 }
 
-export function writeStoreOrders(orders: StoreOrder[]) {
+export function writeStoreOrders(orders: MockStoreOrder[]) {
   window.localStorage.setItem(storeOrdersStorageKey, JSON.stringify(orders));
 }
 
-export function addStoreOrder(order: StoreOrder) {
+export function addStoreOrder(order: MockStoreOrder) {
   const orders = readStoreOrders();
 
   writeStoreOrders([order, ...orders]);
 }
 
-export function updateStoreOrderStatus(id: string, status: StoreOrderStatus) {
+export function updateStoreOrderStatus(id: string, status: MockStoreOrderStatus) {
   const orders = readStoreOrders().map((order) =>
     order.id === id ? { ...order, status } : order,
   );
@@ -105,7 +123,7 @@ export function createStoreOrderFromCheckout({
   form: CheckoutForm;
   items: OrderItem[];
   totalCents: number;
-}): StoreOrder {
+}): MockStoreOrder {
   const orders = readStoreOrders();
   const nextNumber =
     Math.max(1043, ...orders.map((order) => order.number)) + 1;
@@ -123,7 +141,7 @@ export function createStoreOrderFromCheckout({
       extras: item.extras.map((extra) => ({ ...extra })),
     })),
     number: nextNumber,
-    payment: form.payment as StoreOrder["payment"],
+    payment: form.payment as MockStoreOrder["payment"],
     status: "pending",
     totalCents,
   };
@@ -144,7 +162,7 @@ function getAddressLine(form: CheckoutForm) {
     .join(" - ");
 }
 
-function normalizeStoreOrder(order: Partial<StoreOrder>): StoreOrder {
+function normalizeStoreOrder(order: Partial<MockStoreOrder>): MockStoreOrder {
   return {
     addressLine: order.addressLine ?? "",
     cashChangeFor: order.cashChangeFor ?? "",

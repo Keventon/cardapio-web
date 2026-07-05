@@ -7,116 +7,295 @@ import {
   IdCardIcon,
   MagnifyingGlassIcon,
   PersonIcon,
-  RocketIcon,
 } from "@radix-ui/react-icons";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { StoreOrder, StoreOrderStatus } from "../../types/storeOrder";
-import { formatCurrency, getOrderItemTotalCents } from "../../utils/currency";
-import {
-  readStoreOrders,
-  storeOrdersStorageKey,
-  updateStoreOrderStatus,
-} from "../../utils/orderStorage";
-import { clearStoreSession } from "../../utils/storeAuth";
+import type {
+  FulfillmentType,
+  OrderStatus,
+  PaymentMethod,
+  StoreOrder,
+} from "../../types/storeOrder";
+import { formatCurrency } from "../../utils/currency";
+import { getStoreOrders, updateStoreOrderStatus } from "../../services/storeApi";
+import { useStoreOrdersStream } from "../../hooks/useStoreOrdersStream";
+import { useStoreAuthStore } from "../../stores/storeAuthStore";
+import { StoreSidebar } from "./StoreSidebar";
 
 type StoreOrdersPageProps = {
   onBackToMenu: () => void;
   onLogout: () => void;
 };
 
-type Filter = StoreOrderStatus | "all";
+type FilterKey =
+  | "all"
+  | "canceled"
+  | "completed"
+  | "delivered"
+  | "pending"
+  | "preparing"
+  | "ready"
+  | "rejected";
 
-const statusLabels: Record<StoreOrderStatus, string> = {
-  finished: "Finalizado",
+const filterStatusGroups: Record<Exclude<FilterKey, "all">, OrderStatus[]> = {
+  canceled: ["CANCELED"],
+  completed: ["COMPLETED"],
+  delivered: ["DELIVERED"],
+  pending: ["PENDING"],
+  preparing: ["PREPARING"],
+  ready: ["READY", "OUT_FOR_DELIVERY"],
+  rejected: ["REJECTED"],
+};
+
+const filterLabels: Record<FilterKey, string> = {
+  all: "Todo",
   pending: "Pendente",
   preparing: "Em Preparo",
   ready: "Pronto",
+  rejected: "Rejeitado",
+  canceled: "Cancelado",
+  delivered: "Entregue",
+  completed: "Finalizado",
 };
 
-const statusBadgeClasses: Record<StoreOrderStatus, string> = {
-  finished: "bg-surface-soft text-text-muted",
-  pending: "bg-red-100 text-danger",
-  preparing: "bg-accent-soft text-rating-text",
-  ready: "bg-emerald-100 text-emerald-700",
+const statusLabels: Record<OrderStatus, string> = {
+  CANCELED: "Cancelado",
+  COMPLETED: "Finalizado",
+  DELIVERED: "Entregue",
+  OUT_FOR_DELIVERY: "Saiu para entrega",
+  PENDING: "Pendente",
+  PREPARING: "Em Preparo",
+  READY: "Pronto",
+  REJECTED: "Rejeitado",
 };
 
-const columns: { status: StoreOrderStatus; title: string }[] = [
-  { status: "pending", title: "Novos" },
-  { status: "preparing", title: "Em Preparo" },
-  { status: "ready", title: "Prontos" },
+const statusBadgeClasses: Record<OrderStatus, string> = {
+  CANCELED: "bg-surface-soft text-text-muted",
+  COMPLETED: "bg-surface-soft text-text-muted",
+  DELIVERED: "bg-surface-soft text-text-muted",
+  OUT_FOR_DELIVERY: "bg-emerald-100 text-emerald-700",
+  PENDING: "bg-red-100 text-danger",
+  PREPARING: "bg-accent-soft text-rating-text",
+  READY: "bg-emerald-100 text-emerald-700",
+  REJECTED: "bg-red-100 text-danger",
+};
+
+const borderColorByStatus: Record<OrderStatus, string> = {
+  CANCELED: "border-l-text-muted",
+  COMPLETED: "border-l-text-muted",
+  DELIVERED: "border-l-text-muted",
+  OUT_FOR_DELIVERY: "border-l-primary",
+  PENDING: "border-l-danger",
+  PREPARING: "border-l-primary-dark",
+  READY: "border-l-primary",
+  REJECTED: "border-l-danger",
+};
+
+const kanbanColumns: { statuses: OrderStatus[]; title: string }[] = [
+  { statuses: ["PENDING"], title: "Novos" },
+  { statuses: ["PREPARING"], title: "Em Preparo" },
+  { statuses: ["READY", "OUT_FOR_DELIVERY"], title: "Prontos" },
 ];
+
+const emptyColumnMessages: Record<string, string> = {
+  Cancelado: "Nenhum pedido cancelado.",
+  "Em Preparo": "Nenhum pedido em preparo.",
+  Entregue: "Nenhum pedido entregue.",
+  Finalizado: "Nenhum pedido finalizado.",
+  Novos: "Nenhum pedido novo no momento.",
+  Prontos: "Nenhum pedido aguardando despacho.",
+  Rejeitado: "Nenhum pedido rejeitado.",
+};
+
+function getPrimaryAction(
+  order: StoreOrder,
+): { label: string; nextStatus: OrderStatus } | null {
+  if (order.status === "PENDING") {
+    return { label: "Aceitar", nextStatus: "PREPARING" };
+  }
+
+  if (order.status === "PREPARING") {
+    return order.fulfillmentType === "DELIVERY"
+      ? { label: "Saiu p/ entrega", nextStatus: "OUT_FOR_DELIVERY" }
+      : { label: "Pronto", nextStatus: "READY" };
+  }
+
+  if (order.status === "READY" || order.status === "DELIVERED") {
+    return { label: "Finalizar", nextStatus: "COMPLETED" };
+  }
+
+  if (order.status === "OUT_FOR_DELIVERY") {
+    return { label: "Marcar entregue", nextStatus: "DELIVERED" };
+  }
+
+  return null;
+}
+
+function getSecondaryAction(
+  order: StoreOrder,
+): { label: string; nextStatus: OrderStatus } | null {
+  if (order.status === "PENDING") {
+    return { label: "Recusar", nextStatus: "REJECTED" };
+  }
+
+  if (order.status === "PREPARING" || order.status === "READY") {
+    return { label: "Cancelar", nextStatus: "CANCELED" };
+  }
+
+  return null;
+}
 
 export function StoreOrdersPage({
   onBackToMenu,
   onLogout,
 }: StoreOrdersPageProps) {
-  const [orders, setOrders] = useState(readStoreOrders);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [orders, setOrders] = useState<StoreOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
   const [lastMovedOrderId, setLastMovedOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const data = await getStoreOrders();
+
+      setOrders(data);
+      setLoadError("");
+    } catch {
+      setLoadError("Não foi possível carregar os pedidos.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let isIgnored = false;
+
+    getStoreOrders()
+      .then((data) => {
+        if (isIgnored) {
+          return;
+        }
+
+        setOrders(data);
+        setLoadError("");
+      })
+      .catch(() => {
+        if (!isIgnored) {
+          setLoadError("Não foi possível carregar os pedidos.");
+        }
+      })
+      .finally(() => {
+        if (!isIgnored) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isIgnored = true;
+    };
+  }, []);
+
+  useStoreOrdersStream({
+    onOrderCreated: (order) => {
+      setOrders((current) =>
+        current.some((existing) => existing.id === order.id)
+          ? current
+          : [order, ...current],
+      );
+    },
+    onOrderStatusChanged: (orderId, status) => {
+      setOrders((current) =>
+        current.map((order) =>
+          order.id === orderId ? { ...order, status } : order,
+        ),
+      );
+    },
+  });
+
   const visibleColumns =
-    filter === "finished" ? [{ status: "finished" as const, title: "Finalizados" }] : columns;
+    filter === "all"
+      ? kanbanColumns
+      : [{ statuses: filterStatusGroups[filter], title: filterLabels[filter] }];
   const filteredOrders = useMemo(() => {
     const normalizedQuery = normalizeSearchText(searchQuery);
 
     return orders.filter((order) => {
-      const matchesFilter = filter === "all" || order.status === filter;
+      const matchesFilter =
+        filter === "all" || filterStatusGroups[filter].includes(order.status);
       const searchableText = normalizeSearchText(
         [
           order.number,
-          order.customerName,
-          order.customerPhone,
-          order.items.map((item) => item.name).join(" "),
+          order.client.name,
+          order.client.phone,
+          order.items.map((item) => item.product.name).join(" "),
         ].join(" "),
       );
 
       return matchesFilter && searchableText.includes(normalizedQuery);
     });
   }, [filter, orders, searchQuery]);
-  const counts = useMemo(
-    () => ({
+  const counts = useMemo(() => {
+    const result: Record<FilterKey, number> = {
       all: orders.length,
-      finished: orders.filter((order) => order.status === "finished").length,
-      pending: orders.filter((order) => order.status === "pending").length,
-      preparing: orders.filter((order) => order.status === "preparing").length,
-      ready: orders.filter((order) => order.status === "ready").length,
-    }),
-    [orders],
-  );
+      canceled: 0,
+      completed: 0,
+      delivered: 0,
+      pending: 0,
+      preparing: 0,
+      ready: 0,
+      rejected: 0,
+    };
 
-  useEffect(() => {
-    function syncOrders(event: StorageEvent) {
-      if (event.key === storeOrdersStorageKey) {
-        setOrders(readStoreOrders());
+    for (const order of orders) {
+      for (const key of Object.keys(filterStatusGroups) as Array<
+        Exclude<FilterKey, "all">
+      >) {
+        if (filterStatusGroups[key].includes(order.status)) {
+          result[key] += 1;
+        }
       }
     }
 
-    window.addEventListener("storage", syncOrders);
+    return result;
+  }, [orders]);
 
-    return () => window.removeEventListener("storage", syncOrders);
-  }, []);
+  async function moveOrder(order: StoreOrder, nextStatus: OrderStatus) {
+    if (nextStatus === "REJECTED" || nextStatus === "CANCELED") {
+      const confirmed = window.confirm(
+        nextStatus === "REJECTED"
+          ? "Tem certeza que deseja recusar este pedido?"
+          : "Tem certeza que deseja cancelar este pedido?",
+      );
 
-  function moveOrder(order: StoreOrder) {
-    const nextStatusByCurrent: Partial<Record<StoreOrderStatus, StoreOrderStatus>> = {
-      pending: "preparing",
-      preparing: "ready",
-      ready: "finished",
-    };
-    const nextStatus = nextStatusByCurrent[order.status];
-
-    if (!nextStatus) {
-      return;
+      if (!confirmed) {
+        return;
+      }
     }
 
     setLastMovedOrderId(order.id);
-    setOrders(updateStoreOrderStatus(order.id, nextStatus));
-    window.setTimeout(() => setLastMovedOrderId(null), 520);
+
+    try {
+      await updateStoreOrderStatus(order.id, nextStatus);
+
+      setOrders((current) =>
+        current.map((current_) =>
+          current_.id === order.id
+            ? { ...current_, status: nextStatus }
+            : current_,
+        ),
+      );
+    } catch {
+      await loadOrders();
+    } finally {
+      window.setTimeout(() => setLastMovedOrderId(null), 520);
+    }
   }
 
   function handleLogout() {
-    clearStoreSession();
+    useStoreAuthStore.getState().clearAuth();
     onLogout();
   }
 
@@ -129,30 +308,15 @@ export function StoreOrdersPage({
           <header className="sticky top-0 z-20 border-b border-border-light bg-surface/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 lg:pb-0">
-                <FilterButton
-                  count={counts.all}
-                  isActive={filter === "all"}
-                  label="Todo"
-                  onClick={() => setFilter("all")}
-                />
-                <FilterButton
-                  count={counts.pending}
-                  isActive={filter === "pending"}
-                  label="Pendente"
-                  onClick={() => setFilter("pending")}
-                />
-                <FilterButton
-                  count={counts.preparing}
-                  isActive={filter === "preparing"}
-                  label="Em Preparo"
-                  onClick={() => setFilter("preparing")}
-                />
-                <FilterButton
-                  count={counts.finished}
-                  isActive={filter === "finished"}
-                  label="Finalizado"
-                  onClick={() => setFilter("finished")}
-                />
+                {(Object.keys(filterLabels) as FilterKey[]).map((key) => (
+                  <FilterButton
+                    count={counts[key]}
+                    isActive={filter === key}
+                    key={key}
+                    label={filterLabels[key]}
+                    onClick={() => setFilter(key)}
+                  />
+                ))}
               </div>
 
               <label className="relative block w-full lg:max-w-90">
@@ -169,99 +333,49 @@ export function StoreOrdersPage({
             </div>
           </header>
 
-          <section className="grid gap-5 px-4 py-6 sm:grid-cols-2 sm:px-6 lg:px-8 xl:grid-cols-3 xl:py-8">
-            {visibleColumns.map((column) => {
-              const columnOrders = filteredOrders.filter(
-                (order) => order.status === column.status,
-              );
+          {isLoading ? (
+            <div className="grid min-h-96 place-items-center px-4 py-6">
+              <p className="text-body-sm font-semibold text-text-muted">
+                Carregando pedidos...
+              </p>
+            </div>
+          ) : loadError ? (
+            <div className="grid min-h-96 place-items-center px-4 py-6 text-center">
+              <div>
+                <p className="text-body-sm font-semibold text-danger">
+                  {loadError}
+                </p>
+                <button
+                  className="mt-4 h-10 rounded-lg border border-border-input bg-white px-4 text-caption font-extrabold text-primary-dark transition hover:bg-surface-hover"
+                  onClick={loadOrders}
+                  type="button"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            </div>
+          ) : (
+            <section className="grid gap-5 px-4 py-6 sm:grid-cols-2 sm:px-6 lg:px-8 xl:grid-cols-3 xl:py-8">
+              {visibleColumns.map((column) => {
+                const columnOrders = filteredOrders.filter((order) =>
+                  column.statuses.includes(order.status),
+                );
 
-              return (
-                <OrderColumn
-                  key={column.status}
-                  lastMovedOrderId={lastMovedOrderId}
-                  onMoveOrder={moveOrder}
-                  orders={columnOrders}
-                  status={column.status}
-                  title={column.title}
-                />
-              );
-            })}
-          </section>
+                return (
+                  <OrderColumn
+                    key={column.title}
+                    lastMovedOrderId={lastMovedOrderId}
+                    onMoveOrder={moveOrder}
+                    orders={columnOrders}
+                    title={column.title}
+                  />
+                );
+              })}
+            </section>
+          )}
         </main>
       </div>
     </div>
-  );
-}
-
-function StoreSidebar({
-  onBackToMenu,
-  onLogout,
-}: {
-  onBackToMenu: () => void;
-  onLogout: () => void;
-}) {
-  return (
-    <aside className="border-b border-border-light bg-white xl:flex xl:min-h-screen xl:flex-col xl:border-b-0 xl:border-r">
-      <div className="flex h-16 items-center gap-3 border-b border-border-light px-4 sm:px-6 xl:h-20">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-[1rem] font-extrabold text-white">
-          F
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-[1rem] font-extrabold text-text-strong">
-            Fast Burguer
-          </p>
-          <p className="text-caption font-bold text-primary">Área da loja</p>
-        </div>
-      </div>
-
-      <nav className="flex gap-2 overflow-x-auto px-4 py-3 sm:px-6 xl:block xl:space-y-2 xl:overflow-visible">
-        <SidebarItem icon={<RocketIcon className="h-5 w-5" />} label="Dashboard" />
-        <SidebarItem active icon={<BackpackIcon className="h-5 w-5" />} label="Pedidos" />
-        <button
-          className="flex h-10 shrink-0 items-center gap-3 rounded-lg px-3 text-body-sm font-extrabold text-text-muted transition hover:bg-surface-checkout xl:w-full"
-          onClick={onBackToMenu}
-          type="button"
-        >
-          <IdCardIcon className="h-5 w-5" />
-          Cardápio
-        </button>
-        <SidebarItem icon={<PersonIcon className="h-5 w-5" />} label="Relatórios" />
-      </nav>
-
-      <div className="hidden border-t border-border-light p-4 xl:mt-auto xl:block">
-        <button
-          className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-body-sm font-extrabold text-text-muted transition hover:bg-surface-checkout"
-          onClick={onLogout}
-          type="button"
-        >
-          <Cross2Icon className="h-5 w-5" />
-          Sair
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-function SidebarItem({
-  active = false,
-  icon,
-  label,
-}: {
-  active?: boolean;
-  icon: ReactNode;
-  label: string;
-}) {
-  return (
-    <span
-      className={`flex h-10 shrink-0 items-center gap-3 rounded-lg px-3 text-body-sm font-extrabold xl:w-full ${
-        active
-          ? "bg-primary text-white"
-          : "text-text-muted hover:bg-surface-checkout"
-      }`}
-    >
-      {icon}
-      {label}
-    </span>
   );
 }
 
@@ -302,13 +416,11 @@ function OrderColumn({
   lastMovedOrderId,
   onMoveOrder,
   orders,
-  status,
   title,
 }: {
   lastMovedOrderId: string | null;
-  onMoveOrder: (order: StoreOrder) => void;
+  onMoveOrder: (order: StoreOrder, nextStatus: OrderStatus) => void;
   orders: StoreOrder[];
-  status: StoreOrderStatus;
   title: string;
 }) {
   return (
@@ -316,7 +428,7 @@ function OrderColumn({
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="flex items-center gap-2 text-[1.125rem] font-extrabold leading-tight">
           {title}
-          {status === "pending" ? (
+          {title === "Novos" ? (
             <span className="h-2.5 w-2.5 rounded-full bg-danger" />
           ) : null}
         </h2>
@@ -334,7 +446,7 @@ function OrderColumn({
             order={order}
           />
         ))}
-        {orders.length === 0 ? <EmptyColumn status={status} /> : null}
+        {orders.length === 0 ? <EmptyColumn title={title} /> : null}
       </div>
     </section>
   );
@@ -346,21 +458,11 @@ function StoreOrderCard({
   order,
 }: {
   isMoving: boolean;
-  onMoveOrder: (order: StoreOrder) => void;
+  onMoveOrder: (order: StoreOrder, nextStatus: OrderStatus) => void;
   order: StoreOrder;
 }) {
-  const actionLabelByStatus: Partial<Record<StoreOrderStatus, string>> = {
-    pending: "Aceitar",
-    preparing: "Pronto",
-    ready: "Finalizar",
-  };
-  const borderColorByStatus: Record<StoreOrderStatus, string> = {
-    finished: "border-l-text-muted",
-    pending: "border-l-danger",
-    preparing: "border-l-primary-dark",
-    ready: "border-l-primary",
-  };
-  const actionLabel = actionLabelByStatus[order.status];
+  const primaryAction = getPrimaryAction(order);
+  const secondaryAction = getSecondaryAction(order);
 
   return (
     <Dialog.Root>
@@ -381,20 +483,20 @@ function StoreOrderCard({
         </div>
 
         <h3 className="mt-3 text-[1rem] font-extrabold leading-tight text-text-strong">
-          #{order.number} - {order.customerName}
+          #{order.number} - {order.client.name}
         </h3>
         <p className="mt-2 line-clamp-2 text-caption font-medium leading-relaxed text-text-muted sm:text-body-sm">
           {getOrderSummary(order)}
         </p>
         <p className="mt-2 truncate text-caption font-semibold text-text-muted">
-          {order.addressLine}
+          {getAddressLine(order)}
         </p>
 
         <div className="my-3 h-px bg-border-muted" />
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <strong className="text-[1rem] font-extrabold text-text-strong">
-            {formatCurrency(order.totalCents)}
+            {formatCurrency(order.total)}
           </strong>
           <div className="flex flex-wrap gap-2">
             <Dialog.Trigger asChild>
@@ -406,13 +508,22 @@ function StoreOrderCard({
                 Detalhes
               </button>
             </Dialog.Trigger>
-            {actionLabel ? (
+            {secondaryAction ? (
               <button
-                className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-caption font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-primary-hover"
-                onClick={() => onMoveOrder(order)}
+                className="flex h-9 items-center gap-2 rounded-lg border border-danger/30 bg-white px-3 text-caption font-extrabold text-danger transition hover:bg-red-50"
+                onClick={() => onMoveOrder(order, secondaryAction.nextStatus)}
                 type="button"
               >
-                {actionLabel}
+                {secondaryAction.label}
+              </button>
+            ) : null}
+            {primaryAction ? (
+              <button
+                className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-caption font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-primary-hover"
+                onClick={() => onMoveOrder(order, primaryAction.nextStatus)}
+                type="button"
+              >
+                {primaryAction.label}
                 <CheckIcon className="h-4 w-4" />
               </button>
             ) : null}
@@ -428,15 +539,11 @@ function OrderDetailsDialog({
   onMoveOrder,
   order,
 }: {
-  onMoveOrder: (order: StoreOrder) => void;
+  onMoveOrder: (order: StoreOrder, nextStatus: OrderStatus) => void;
   order: StoreOrder;
 }) {
-  const actionLabelByStatus: Partial<Record<StoreOrderStatus, string>> = {
-    pending: "Aceitar pedido",
-    preparing: "Marcar como pronto",
-    ready: "Finalizar pedido",
-  };
-  const actionLabel = actionLabelByStatus[order.status];
+  const primaryAction = getPrimaryAction(order);
+  const secondaryAction = getSecondaryAction(order);
 
   return (
     <Dialog.Portal>
@@ -453,7 +560,8 @@ function OrderDetailsDialog({
               Pedido #{order.number}
             </Dialog.Title>
             <Dialog.Description className="mt-1 text-body-sm font-medium text-text-muted">
-              {formatOrderAge(order.createdAt)} - {formatFulfillment(order.fulfillment)}
+              {formatOrderAge(order.createdAt)} -{" "}
+              {formatFulfillment(order.fulfillmentType)}
             </Dialog.Description>
           </div>
 
@@ -473,17 +581,17 @@ function OrderDetailsDialog({
             <DetailBlock
               icon={<PersonIcon className="h-4 w-4" />}
               label="Cliente"
-              value={order.customerName}
+              value={order.client.name}
             />
             <DetailBlock
               icon={<IdCardIcon className="h-4 w-4" />}
               label="Telefone"
-              value={order.customerPhone}
+              value={order.client.phone}
             />
             <DetailBlock
               icon={<DrawingPinFilledIcon className="h-4 w-4" />}
               label="Endereço"
-              value={order.addressLine}
+              value={getAddressLine(order)}
             />
             <DetailBlock
               icon={<BackpackIcon className="h-4 w-4" />}
@@ -491,6 +599,17 @@ function OrderDetailsDialog({
               value={formatPayment(order)}
             />
           </section>
+
+          {order.observation ? (
+            <div className="mt-3 rounded-lg border border-border-light bg-surface px-4 py-3">
+              <p className="text-caption font-extrabold uppercase text-primary-dark">
+                Observação do pedido
+              </p>
+              <p className="mt-2 text-body-sm font-semibold leading-relaxed text-text-strong">
+                {order.observation}
+              </p>
+            </div>
+          ) : null}
 
           <div className="my-5 h-px bg-border-muted" />
 
@@ -507,32 +626,42 @@ function OrderDetailsDialog({
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-body-sm font-extrabold text-text-strong">
-                        {item.quantity}x {item.name}
+                        {item.quantity}x {item.product.name}
                       </p>
-                      {item.extras.length > 0 ? (
+                      {item.observation ? (
                         <p className="mt-2 text-caption font-medium leading-relaxed text-text-muted">
-                          Adicionais:{" "}
-                          {item.extras
-                            .map(
-                              (extra) =>
-                                `${extra.name} (+${formatCurrency(extra.priceCents)})`,
-                            )
-                            .join(", ")}
-                        </p>
-                      ) : null}
-                      {item.instructions ? (
-                        <p className="mt-2 text-caption font-medium leading-relaxed text-text-muted">
-                          Obs: {item.instructions}
+                          Obs: {item.observation}
                         </p>
                       ) : null}
                     </div>
                     <strong className="shrink-0 text-body-sm font-extrabold text-accent">
-                      {formatCurrency(getOrderItemTotalCents(item))}
+                      {formatCurrency(item.unitPrice * item.quantity)}
                     </strong>
                   </div>
                 </article>
               ))}
             </div>
+          </section>
+
+          <div className="my-5 h-px bg-border-muted" />
+
+          <section className="space-y-2">
+            <div className="flex justify-between text-body-sm font-semibold text-text-muted">
+              <span>Subtotal</span>
+              <span>{formatCurrency(order.subtotal)}</span>
+            </div>
+            {order.deliveryFee > 0 ? (
+              <div className="flex justify-between text-body-sm font-semibold text-text-muted">
+                <span>Taxa de entrega</span>
+                <span>{formatCurrency(order.deliveryFee)}</span>
+              </div>
+            ) : null}
+            {order.discount > 0 ? (
+              <div className="flex justify-between text-body-sm font-semibold text-text-muted">
+                <span>Desconto</span>
+                <span>-{formatCurrency(order.discount)}</span>
+              </div>
+            ) : null}
           </section>
         </div>
 
@@ -540,19 +669,34 @@ function OrderDetailsDialog({
           <div className="flex items-center justify-between gap-4">
             <span className="text-body-sm font-bold text-text-muted">Total</span>
             <strong className="text-[1.125rem] font-extrabold text-primary">
-              {formatCurrency(order.totalCents)}
+              {formatCurrency(order.total)}
             </strong>
           </div>
-          {actionLabel ? (
-            <Dialog.Close asChild>
-              <button
-                className="mt-4 h-11 w-full rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover"
-                onClick={() => onMoveOrder(order)}
-                type="button"
-              >
-                {actionLabel}
-              </button>
-            </Dialog.Close>
+          {primaryAction || secondaryAction ? (
+            <div className="mt-4 flex gap-2">
+              {secondaryAction ? (
+                <Dialog.Close asChild>
+                  <button
+                    className="h-11 flex-1 rounded-lg border border-danger/30 bg-white text-button font-extrabold text-danger transition hover:bg-red-50"
+                    onClick={() => onMoveOrder(order, secondaryAction.nextStatus)}
+                    type="button"
+                  >
+                    {secondaryAction.label}
+                  </button>
+                </Dialog.Close>
+              ) : null}
+              {primaryAction ? (
+                <Dialog.Close asChild>
+                  <button
+                    className="h-11 flex-1 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover"
+                    onClick={() => onMoveOrder(order, primaryAction.nextStatus)}
+                    type="button"
+                  >
+                    {primaryAction.label}
+                  </button>
+                </Dialog.Close>
+              ) : null}
+            </div>
           ) : null}
         </footer>
       </Dialog.Content>
@@ -582,34 +726,43 @@ function DetailBlock({
   );
 }
 
-function EmptyColumn({ status }: { status: StoreOrderStatus }) {
-  const messageByStatus: Record<StoreOrderStatus, string> = {
-    finished: "Nenhum pedido finalizado.",
-    pending: "Nenhum pedido novo no momento.",
-    preparing: "Nenhum pedido em preparo.",
-    ready: "Nenhum pedido aguardando despacho.",
-  };
-
+function EmptyColumn({ title }: { title: string }) {
   return (
     <div className="grid min-h-56 place-items-center rounded-lg border border-dashed border-border-muted bg-surface px-6 text-center">
       <div>
         <BackpackIcon className="mx-auto h-8 w-8 text-border-input" />
         <p className="mt-4 text-body-sm font-semibold leading-relaxed text-text-muted">
-          {messageByStatus[status]}
+          {emptyColumnMessages[title] ?? "Nenhum pedido aqui."}
         </p>
       </div>
     </div>
   );
 }
 
+function getAddressLine(order: StoreOrder) {
+  if (order.fulfillmentType === "PICKUP" || !order.address) {
+    return "Retirada no balcão";
+  }
+
+  const { city, complement, neighborhood, number, state, street } =
+    order.address;
+
+  return [
+    `${street}, ${number}`,
+    complement,
+    neighborhood,
+    [city, state].filter(Boolean).join(" - "),
+  ]
+    .filter(Boolean)
+    .join(" - ");
+}
+
 function getOrderSummary(order: StoreOrder) {
   return order.items
-    .map((item) => {
-      const extras = item.extras.map((extra) => extra.name).join(", ");
-      const totalCents = getOrderItemTotalCents(item);
-
-      return `${item.quantity}x ${item.name}${extras ? ` (${extras})` : ""} - ${formatCurrency(totalCents)}`;
-    })
+    .map(
+      (item) =>
+        `${item.quantity}x ${item.product.name} - ${formatCurrency(item.unitPrice * item.quantity)}`,
+    )
     .join(", ");
 }
 
@@ -630,22 +783,24 @@ function formatOrderAge(createdAt: string) {
   return `Há ${diffHours} h`;
 }
 
-function formatFulfillment(fulfillment: StoreOrder["fulfillment"]) {
-  return fulfillment === "delivery" ? "Entrega" : "Retirada";
+function formatFulfillment(fulfillmentType: FulfillmentType) {
+  return fulfillmentType === "DELIVERY" ? "Entrega" : "Retirada";
 }
 
-function formatPayment(order: StoreOrder) {
-  const paymentLabels: Record<StoreOrder["payment"], string> = {
-    card: "Cartão",
-    cash: "Dinheiro",
-    pix: "Pix",
-  };
+const paymentLabels: Record<PaymentMethod, string> = {
+  CASH: "Dinheiro",
+  CREDIT_CARD: "Cartão de crédito",
+  DEBIT_CARD: "Cartão de débito",
+  MEAL_VOUCHER: "Vale-refeição",
+  PIX: "Pix",
+};
 
-  if (order.payment === "cash" && order.cashChangeFor) {
-    return `${paymentLabels[order.payment]} - troco para ${order.cashChangeFor}`;
+function formatPayment(order: StoreOrder) {
+  if (order.paymentMethod === "CASH" && order.changeFor) {
+    return `${paymentLabels.CASH} - troco para ${formatCurrency(order.changeFor)}`;
   }
 
-  return paymentLabels[order.payment];
+  return paymentLabels[order.paymentMethod];
 }
 
 function normalizeSearchText(value: string) {
