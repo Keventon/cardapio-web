@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { CheckoutPage } from "./components/checkout/CheckoutPage";
+import { StatusToast } from "./components/feedback/StatusToast";
 import { Footer } from "./components/layout/Footer";
 import { LoadingScreen } from "./components/loading/LoadingScreen";
 import { CartDrawer } from "./components/menu/CartDrawer";
@@ -10,14 +11,18 @@ import { HeroBanner } from "./components/menu/HeroBanner";
 import { PopularSection } from "./components/menu/PopularSection";
 import { StoreLoginPage } from "./components/store/StoreLoginPage";
 import { StoreOrdersPage } from "./components/store/StoreOrdersPage";
-import { categories, products } from "./data/menu";
+import { getStoreMenu } from "./api/menu";
 import { useActiveCategory } from "./hooks/useActiveCategory";
+import { useUserClient } from "./hooks/useUserClient";
+import { mapStoreMenuToClientMenu } from "./mappers/menuMapper";
 import {
   selectCartCount,
   selectCartTotalCents,
   useCartStore,
 } from "./stores/cartStore";
+import type { MenuCategory, Product } from "./types/menu";
 import { readStoreSession } from "./utils/storeAuth";
+import type { StoreSession } from "./utils/storeAuth";
 
 type AppRoute = "menu" | "store";
 
@@ -27,12 +32,20 @@ function App() {
     "menu",
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [menuCategories, setMenuCategories] =
+    useState<MenuCategory[]>([]);
+  const [menuProducts, setMenuProducts] = useState<Product[]>([]);
+  const [menuError, setMenuError] = useState("");
+  const [isMenuOffline, setIsMenuOffline] = useState(false);
+  const [storeId, setStoreId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFloatingCart, setShowFloatingCart] = useState(false);
-  const [isStoreAuthenticated, setIsStoreAuthenticated] =
-    useState(readStoreSession);
+  const [storeSession, setStoreSession] = useState<StoreSession | null>(() =>
+    readStoreSession(),
+  );
+  const { isAuthenticated: isClientAuthenticated } = useUserClient();
   const { activeCategory, setActiveCategory } = useActiveCategory({
-    categories,
+    categories: menuCategories,
     enabled: !isLoading && appRoute === "menu" && currentScreen === "menu",
   });
   const addToCart = useCartStore((state) => state.addItem);
@@ -47,18 +60,54 @@ function App() {
     const normalizedQuery = normalizeSearchText(searchQuery);
 
     if (!normalizedQuery) {
-      return products;
+      return menuProducts;
     }
 
-    return products.filter((product) =>
+    return menuProducts.filter((product) =>
       normalizeSearchText(product.name).includes(normalizedQuery),
     );
-  }, [searchQuery]);
+  }, [menuProducts, searchQuery]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 900);
+    let isMounted = true;
+    let retryTimeout: number | undefined;
 
-    return () => window.clearTimeout(timer);
+    async function loadMenu() {
+      try {
+        const menu = await getStoreMenu();
+        const mappedMenu = mapStoreMenuToClientMenu(menu);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setMenuCategories(mappedMenu.categories);
+        setMenuProducts(mappedMenu.products);
+        setStoreId(mappedMenu.store.id);
+        setMenuError("");
+        setIsMenuOffline(false);
+        setIsLoading(false);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setMenuCategories([]);
+        setMenuProducts([]);
+        setStoreId("");
+        setMenuError("A API parece estar fora do ar. Tentando reconectar...");
+        setIsMenuOffline(true);
+        setIsLoading(true);
+        retryTimeout = window.setTimeout(loadMenu, 5000);
+      }
+    }
+
+    loadMenu();
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(retryTimeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -83,17 +132,26 @@ function App() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  if (isLoading) {
-    return <LoadingScreen />;
+  if (isLoading && appRoute === "menu") {
+    return (
+      <>
+        <LoadingScreen />
+        <StatusToast
+          message={menuError}
+          title="Cardápio indisponível"
+          visible={isMenuOffline}
+        />
+      </>
+    );
   }
 
   if (appRoute === "store") {
     const navigateToMenu = () => navigateTo("/", setAppRoute);
 
-    if (!isStoreAuthenticated) {
+    if (!storeSession) {
       return (
         <StoreLoginPage
-          onAuthenticated={() => setIsStoreAuthenticated(true)}
+          onAuthenticated={setStoreSession}
           onBackToMenu={navigateToMenu}
         />
       );
@@ -102,7 +160,8 @@ function App() {
     return (
       <StoreOrdersPage
         onBackToMenu={navigateToMenu}
-        onLogout={() => setIsStoreAuthenticated(false)}
+        onLogout={() => setStoreSession(null)}
+        session={storeSession}
       />
     );
   }
@@ -117,6 +176,7 @@ function App() {
             clearCart();
             setCurrentScreen("menu");
           }}
+          storeId={storeId}
           totalCents={orderTotalCents}
         />
       </Tooltip.Provider>
@@ -127,6 +187,7 @@ function App() {
     <Tooltip.Provider delayDuration={120}>
       <CartDrawer
         items={cartItems}
+        isClientAuthenticated={isClientAuthenticated}
         onDecrementItem={decrementCartItem}
         onCheckout={() => setCurrentScreen("checkout")}
         onIncrementItem={incrementCartItem}
@@ -138,7 +199,7 @@ function App() {
             <CategoryNav
               activeCategory={activeCategory}
               cartCount={cartCount}
-              categories={categories}
+              categories={menuCategories}
               onCategoryChange={setActiveCategory}
               onSearchChange={setSearchQuery}
               searchQuery={searchQuery}
@@ -146,10 +207,12 @@ function App() {
 
             <main className="relative flex-1 bg-surface px-5 py-6 sm:px-8 lg:px-16 lg:py-7">
               {searchQuery.trim() ? null : (
-                <HeroBanner onAddToCart={addToCart} product={products[0]} />
+                menuProducts[0] ? (
+                  <HeroBanner onAddToCart={addToCart} product={menuProducts[0]} />
+                ) : null
               )}
               <PopularSection
-                categories={categories}
+                categories={menuCategories}
                 onAddToCart={addToCart}
                 products={filteredProducts}
                 searchQuery={searchQuery}

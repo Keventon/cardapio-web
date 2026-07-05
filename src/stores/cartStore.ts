@@ -14,14 +14,7 @@ type CartStore = {
 export const useCartStore = create<CartStore>((set) => ({
   addItem: (product, options) => {
     const instructions = options.instructions.trim();
-    const extras = [...options.extras].sort((first, second) =>
-      first.name.localeCompare(second.name),
-    );
-    const id = [
-      product.id,
-      extras.map((extra) => extra.name).join("|"),
-      instructions,
-    ].join("::");
+    const id = [product.id, instructions].join("::");
 
     set((state) => {
       const existingItem = state.items.find((item) => item.id === id);
@@ -40,10 +33,10 @@ export const useCartStore = create<CartStore>((set) => ({
         items: [
           ...state.items,
           {
-            extras,
             id,
             instructions,
             name: product.name,
+            productId: product.id,
             quantity: options.quantity,
             unitPriceCents: product.priceCents,
           },

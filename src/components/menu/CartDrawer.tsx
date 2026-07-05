@@ -11,10 +11,12 @@ import * as Separator from "@radix-ui/react-separator";
 import type { ReactNode } from "react";
 import type { OrderItem } from "../../types/menu";
 import { formatCurrency, getOrderItemTotalCents } from "../../utils/currency";
+import { ProfileDialog } from "../profile/ProfileDialog";
 
 type CartDrawerProps = {
   children: ReactNode;
   items: OrderItem[];
+  isClientAuthenticated: boolean;
   onDecrementItem: (id: string) => void;
   onCheckout: () => void;
   onIncrementItem: (id: string) => void;
@@ -25,6 +27,7 @@ type CartDrawerProps = {
 export function CartDrawer({
   children,
   items,
+  isClientAuthenticated,
   onDecrementItem,
   onCheckout,
   onIncrementItem,
@@ -111,17 +114,24 @@ export function CartDrawer({
               </strong>
             </div>
 
-            <Dialog.Close asChild>
-              <button
-                className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"
-                disabled={!hasItems}
-                onClick={onCheckout}
-                type="button"
-              >
-                Finalizar Pedido
-                <ArrowRightIcon className="h-4 w-4" />
-              </button>
-            </Dialog.Close>
+            {isClientAuthenticated ? (
+              <Dialog.Close asChild>
+                <button
+                  className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"
+                  disabled={!hasItems}
+                  onClick={onCheckout}
+                  type="button"
+                >
+                  Finalizar Pedido
+                  <ArrowRightIcon className="h-4 w-4" />
+                </button>
+              </Dialog.Close>
+            ) : (
+              <ProfileDialog
+                triggerClassName="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"
+                triggerLabel="Entrar para finalizar"
+              />
+            )}
           </footer>
         </Dialog.Content>
       </Dialog.Portal>
@@ -157,12 +167,6 @@ function CartItem({
           {formatCurrency(itemTotalCents)}
         </strong>
       </div>
-
-      {item.extras.length > 0 ? (
-        <p className="mt-3 text-caption font-medium leading-relaxed text-text-muted">
-          Adicionais: {item.extras.map((extra) => extra.name).join(", ")}
-        </p>
-      ) : null}
 
       {item.instructions ? (
         <p className="mt-2 text-caption font-medium leading-relaxed text-text-muted">

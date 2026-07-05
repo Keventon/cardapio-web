@@ -8,17 +8,13 @@ export function formatCurrency(cents: number) {
 }
 
 export function getOrderItemTotalCents({
-  extras,
   quantity,
   unitPriceCents,
 }: {
-  extras: { priceCents: number }[];
   quantity: number;
   unitPriceCents: number;
 }) {
-  const extrasTotal = extras.reduce((total, extra) => total + extra.priceCents, 0);
-
-  return (unitPriceCents + extrasTotal) * quantity;
+  return unitPriceCents * quantity;
 }
 
 export function parseCurrencyToCents(value: string) {

@@ -7,6 +7,7 @@ type FieldProps = {
   onChange?: (value: string) => void;
   placeholder: string;
   registration?: UseFormRegisterReturn;
+  type?: string;
   value?: string;
 };
 
@@ -17,6 +18,7 @@ export function Field({
   onChange,
   placeholder,
   registration,
+  type = "text",
   value,
 }: FieldProps) {
   return (
@@ -28,6 +30,7 @@ export function Field({
         aria-invalid={error ? "true" : "false"}
         className="h-12 w-full rounded-lg border border-border-input bg-surface px-4 text-body-sm font-medium text-text-strong outline-none transition placeholder:text-placeholder focus:border-primary focus:bg-white aria-invalid:border-danger"
         placeholder={placeholder}
+        type={type}
         {...registration}
         onChange={(event) => {
           registration?.onChange(event);

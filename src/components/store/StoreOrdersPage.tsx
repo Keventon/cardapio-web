@@ -12,18 +12,28 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import type {
+  ApiFulfillmentType,
+  ApiOrder,
+  ApiOrderItem,
+  ApiOrderStatus,
+  ApiPaymentMethod,
+} from "../../types/api";
+import type { OrderItem } from "../../types/menu";
 import type { StoreOrder, StoreOrderStatus } from "../../types/storeOrder";
-import { formatCurrency, getOrderItemTotalCents } from "../../utils/currency";
+import { getApiErrorMessage } from "../../api/http";
 import {
-  readStoreOrders,
-  storeOrdersStorageKey,
-  updateStoreOrderStatus,
-} from "../../utils/orderStorage";
+  listStoreOrders,
+  updateStoreOrderStatus as updateStoreOrderStatusRequest,
+} from "../../api/store";
+import { formatCurrency, getOrderItemTotalCents } from "../../utils/currency";
 import { clearStoreSession } from "../../utils/storeAuth";
+import type { StoreSession } from "../../utils/storeAuth";
 
 type StoreOrdersPageProps = {
   onBackToMenu: () => void;
   onLogout: () => void;
+  session: StoreSession;
 };
 
 type Filter = StoreOrderStatus | "all";
@@ -51,8 +61,11 @@ const columns: { status: StoreOrderStatus; title: string }[] = [
 export function StoreOrdersPage({
   onBackToMenu,
   onLogout,
+  session,
 }: StoreOrdersPageProps) {
-  const [orders, setOrders] = useState(readStoreOrders);
+  const [orders, setOrders] = useState<StoreOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [lastMovedOrderId, setLastMovedOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -87,32 +100,69 @@ export function StoreOrdersPage({
   );
 
   useEffect(() => {
-    function syncOrders(event: StorageEvent) {
-      if (event.key === storeOrdersStorageKey) {
-        setOrders(readStoreOrders());
+    let isMounted = true;
+
+    async function loadOrders() {
+      try {
+        setIsLoading(true);
+        setError("");
+        const apiOrders = await listStoreOrders(session.token);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setOrders(apiOrders.map(mapApiOrderToStoreOrder));
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setOrders([]);
+        setError(getApiErrorMessage(error, "Não foi possível carregar os pedidos."));
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
-    window.addEventListener("storage", syncOrders);
+    loadOrders();
 
-    return () => window.removeEventListener("storage", syncOrders);
-  }, []);
-
-  function moveOrder(order: StoreOrder) {
-    const nextStatusByCurrent: Partial<Record<StoreOrderStatus, StoreOrderStatus>> = {
-      pending: "preparing",
-      preparing: "ready",
-      ready: "finished",
+    return () => {
+      isMounted = false;
     };
-    const nextStatus = nextStatusByCurrent[order.status];
+  }, [session.token]);
 
-    if (!nextStatus) {
+  async function moveOrder(order: StoreOrder) {
+    const nextApiStatusByCurrent: Partial<Record<StoreOrderStatus, ApiOrderStatus>> = {
+      pending: "PREPARING",
+      preparing: "READY",
+      ready: "COMPLETED",
+    };
+    const nextApiStatus = nextApiStatusByCurrent[order.status];
+
+    if (!nextApiStatus) {
       return;
     }
 
-    setLastMovedOrderId(order.id);
-    setOrders(updateStoreOrderStatus(order.id, nextStatus));
-    window.setTimeout(() => setLastMovedOrderId(null), 520);
+    try {
+      setError("");
+      await updateStoreOrderStatusRequest(session.token, order.id, nextApiStatus);
+      setLastMovedOrderId(order.id);
+      setOrders((currentOrders) =>
+        currentOrders.map((currentOrder) =>
+          currentOrder.id === order.id
+            ? { ...currentOrder, status: mapApiOrderStatus(nextApiStatus) }
+            : currentOrder,
+        ),
+      );
+      window.setTimeout(() => setLastMovedOrderId(null), 520);
+    } catch (error) {
+      setError(
+        getApiErrorMessage(error, "Não foi possível atualizar o status do pedido."),
+      );
+    }
   }
 
   function handleLogout() {
@@ -123,7 +173,11 @@ export function StoreOrdersPage({
   return (
     <div className="min-h-screen bg-surface-checkout text-text-strong">
       <div className="grid min-h-screen xl:grid-cols-[16rem_minmax(0,1fr)]">
-        <StoreSidebar onBackToMenu={onBackToMenu} onLogout={handleLogout} />
+        <StoreSidebar
+          onBackToMenu={onBackToMenu}
+          onLogout={handleLogout}
+          storeName={session.store?.name ?? "Loja"}
+        />
 
         <main className="min-w-0">
           <header className="sticky top-0 z-20 border-b border-border-light bg-surface/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
@@ -169,7 +223,18 @@ export function StoreOrdersPage({
             </div>
           </header>
 
-          <section className="grid gap-5 px-4 py-6 sm:grid-cols-2 sm:px-6 lg:px-8 xl:grid-cols-3 xl:py-8">
+          {error ? (
+            <div className="mx-4 mt-5 rounded-lg border border-border-light bg-white px-5 py-4 text-body-sm font-bold text-danger shadow-sm sm:mx-6 lg:mx-8">
+              {error}
+            </div>
+          ) : null}
+
+          {isLoading ? (
+            <div className="grid min-h-96 place-items-center px-4 py-6 text-body-sm font-bold text-text-muted">
+              Carregando pedidos...
+            </div>
+          ) : (
+            <section className="grid gap-5 px-4 py-6 sm:grid-cols-2 sm:px-6 lg:px-8 xl:grid-cols-3 xl:py-8">
             {visibleColumns.map((column) => {
               const columnOrders = filteredOrders.filter(
                 (order) => order.status === column.status,
@@ -186,7 +251,8 @@ export function StoreOrdersPage({
                 />
               );
             })}
-          </section>
+            </section>
+          )}
         </main>
       </div>
     </div>
@@ -196,19 +262,23 @@ export function StoreOrdersPage({
 function StoreSidebar({
   onBackToMenu,
   onLogout,
+  storeName,
 }: {
   onBackToMenu: () => void;
   onLogout: () => void;
+  storeName: string;
 }) {
+  const storeInitial = storeName.trim().charAt(0).toUpperCase() || "L";
+
   return (
     <aside className="border-b border-border-light bg-white xl:flex xl:min-h-screen xl:flex-col xl:border-b-0 xl:border-r">
       <div className="flex h-16 items-center gap-3 border-b border-border-light px-4 sm:px-6 xl:h-20">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-[1rem] font-extrabold text-white">
-          F
+          {storeInitial}
         </span>
         <div className="min-w-0">
           <p className="truncate text-[1rem] font-extrabold text-text-strong">
-            Fast Burguer
+            {storeName}
           </p>
           <p className="text-caption font-bold text-primary">Área da loja</p>
         </div>
@@ -509,17 +579,6 @@ function OrderDetailsDialog({
                       <p className="text-body-sm font-extrabold text-text-strong">
                         {item.quantity}x {item.name}
                       </p>
-                      {item.extras.length > 0 ? (
-                        <p className="mt-2 text-caption font-medium leading-relaxed text-text-muted">
-                          Adicionais:{" "}
-                          {item.extras
-                            .map(
-                              (extra) =>
-                                `${extra.name} (+${formatCurrency(extra.priceCents)})`,
-                            )
-                            .join(", ")}
-                        </p>
-                      ) : null}
                       {item.instructions ? (
                         <p className="mt-2 text-caption font-medium leading-relaxed text-text-muted">
                           Obs: {item.instructions}
@@ -605,10 +664,9 @@ function EmptyColumn({ status }: { status: StoreOrderStatus }) {
 function getOrderSummary(order: StoreOrder) {
   return order.items
     .map((item) => {
-      const extras = item.extras.map((extra) => extra.name).join(", ");
       const totalCents = getOrderItemTotalCents(item);
 
-      return `${item.quantity}x ${item.name}${extras ? ` (${extras})` : ""} - ${formatCurrency(totalCents)}`;
+      return `${item.quantity}x ${item.name} - ${formatCurrency(totalCents)}`;
     })
     .join(", ");
 }
@@ -646,6 +704,94 @@ function formatPayment(order: StoreOrder) {
   }
 
   return paymentLabels[order.payment];
+}
+
+function mapApiOrderToStoreOrder(order: ApiOrder): StoreOrder {
+  return {
+    addressLine: formatAddressLine(order.fulfillmentType, order.address),
+    cashChangeFor: order.changeFor ? formatCurrency(order.changeFor) : "",
+    createdAt: order.createdAt ?? new Date().toISOString(),
+    customerName: order.client?.name ?? "Cliente",
+    customerPhone: order.client?.phone ?? "Não informado",
+    fulfillment: order.fulfillmentType === "PICKUP" ? "pickup" : "delivery",
+    id: order.id,
+    items: (order.items ?? []).map(mapApiOrderItemToOrderItem),
+    number: order.number,
+    payment: mapApiPaymentMethod(order.paymentMethod),
+    status: mapApiOrderStatus(order.status),
+    totalCents: order.total,
+  };
+}
+
+function mapApiOrderItemToOrderItem(item: ApiOrderItem): OrderItem {
+  return {
+    id: item.id,
+    instructions: item.observation ?? "",
+    name: item.product?.name ?? item.productId,
+    productId: item.productId,
+    quantity: item.quantity,
+    unitPriceCents: item.unitPrice,
+  };
+}
+
+function mapApiOrderStatus(status: ApiOrderStatus): StoreOrderStatus {
+  const statusByApi: Record<ApiOrderStatus, StoreOrderStatus> = {
+    CANCELED: "finished",
+    COMPLETED: "finished",
+    DELIVERED: "finished",
+    OUT_FOR_DELIVERY: "ready",
+    PENDING: "pending",
+    PREPARING: "preparing",
+    READY: "ready",
+    REJECTED: "finished",
+  };
+
+  return statusByApi[status];
+}
+
+function mapApiPaymentMethod(paymentMethod?: ApiPaymentMethod): StoreOrder["payment"] {
+  if (paymentMethod === "CASH") {
+    return "cash";
+  }
+
+  if (paymentMethod === "PIX") {
+    return "pix";
+  }
+
+  return "card";
+}
+
+function formatAddressLine(
+  fulfillmentType: ApiFulfillmentType | undefined,
+  address: unknown,
+) {
+  if (fulfillmentType === "PICKUP") {
+    return "Retirada no balcão";
+  }
+
+  if (!isAddressSnapshot(address)) {
+    return "Endereço não informado";
+  }
+
+  return [
+    [address.street, address.number].filter(Boolean).join(", "),
+    address.complement,
+    address.neighborhood,
+    [address.city, address.state].filter(Boolean).join(" - "),
+  ]
+    .filter(Boolean)
+    .join(" - ");
+}
+
+function isAddressSnapshot(address: unknown): address is {
+  city?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  number?: string | null;
+  state?: string | null;
+  street?: string | null;
+} {
+  return typeof address === "object" && address !== null;
 }
 
 function normalizeSearchText(value: string) {

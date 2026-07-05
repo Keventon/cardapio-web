@@ -3,15 +3,24 @@ import {
   DrawingPinFilledIcon,
   IdCardIcon,
   PersonIcon,
+  PlusIcon,
   RocketIcon,
 } from "@radix-ui/react-icons";
 import * as RadioGroup from "@radix-ui/react-radio-group";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
+import {
+  createClientAddress,
+  listClientAddresses,
+  mapAddressToApiInput,
+} from "../../api/addresses";
+import { getApiErrorMessage } from "../../api/http";
+import { createOrder } from "../../api/orders";
 import { AddressOption, DeliveryOption, NewAddressOption, PaymentOption } from "./CheckoutOptions";
 import { CheckoutCard } from "./CheckoutCard";
 import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
+import { OrderReceivedDialog } from "./OrderReceivedDialog";
 import { OrderCheckoutSummary } from "./OrderCheckoutSummary";
 import { CepFeedback } from "../forms/CepFeedback";
 import { Field } from "../forms/Field";
@@ -21,37 +30,46 @@ import {
 } from "../../forms/checkoutForm";
 import type { CheckoutForm } from "../../forms/checkoutForm";
 import { useCepLookup } from "../../hooks/useCepLookup";
+import { useClientSession } from "../../hooks/useClientSession";
+import type { ApiOrder } from "../../types/api";
 import type { OrderItem } from "../../types/menu";
-import type { Address } from "../../types/profile";
+import type { Address, ProfileState } from "../../types/profile";
 import { formatCurrencyInput } from "../../utils/currency";
-import {
-  addStoreOrder,
-  createStoreOrderFromCheckout,
-} from "../../utils/orderStorage";
 import { formatPhone } from "../../utils/phone";
 import { formatPostalCode } from "../../utils/postalCode";
-import {
-  addSavedAddress,
-  getNextAddressId,
-  readSavedProfile,
-} from "../../utils/profileStorage";
+import { subscribeClientProfileChanged } from "../../utils/clientSession";
 import { BrandLogo } from "../brand/BrandLogo";
+import { ProfileDialog } from "../profile/ProfileDialog";
 
 type CheckoutPageProps = {
   items: OrderItem[];
   onBack: () => void;
   onOrderConfirmed: () => void;
+  storeId: string;
   totalCents: number;
+};
+
+const emptyProfile: ProfileState = {
+  addresses: [],
+  name: "",
+  phone: "",
 };
 
 export function CheckoutPage({
   items,
   onBack,
   onOrderConfirmed,
+  storeId,
   totalCents,
 }: CheckoutPageProps) {
-  const [savedProfile, setSavedProfile] = useState(readSavedProfile);
+  const session = useClientSession();
+  const [savedProfile, setSavedProfile] = useState<ProfileState>(emptyProfile);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isNewAddressFormOpen, setIsNewAddressFormOpen] = useState(false);
+  const [orderError, setOrderError] = useState("");
+  const [confirmedOrder, setConfirmedOrder] = useState<ApiOrder | null>(null);
   const [submittedForm, setSubmittedForm] = useState<CheckoutForm | null>(null);
   const checkoutValidationSchema = useMemo(
     () => createCheckoutSchema(totalCents),
@@ -60,9 +78,11 @@ export function CheckoutPage({
   const {
     control,
     formState: { errors },
+    getValues,
     handleSubmit,
     register,
     setValue,
+    trigger,
   } = useForm<CheckoutForm>({
     defaultValues: getCheckoutDefaults(savedProfile),
     resolver: zodResolver(checkoutValidationSchema),
@@ -75,7 +95,38 @@ export function CheckoutPage({
   const phone = useWatch({ control, name: "phone" });
   const postalCode = useWatch({ control, name: "postalCode" });
   const savedAddresses = savedProfile.addresses;
-  const isNewAddress = deliveryAddressId === "new" || savedAddresses.length === 0;
+  const isNewAddress = deliveryAddressId === "new";
+  const shouldShowNewAddressForm = isNewAddress && isNewAddressFormOpen;
+
+  const loadClientAddresses = useCallback(async () => {
+    if (!session) {
+      setSavedProfile(emptyProfile);
+      return;
+    }
+
+    try {
+      const addresses = await listClientAddresses(session.token);
+
+      setSavedProfile({
+        addresses,
+        name: session.client.name,
+        phone: session.client.phone,
+      });
+      setValue("name", session.client.name);
+      setValue("phone", formatPhone(session.client.phone));
+      setValue(
+        "deliveryAddressId",
+        addresses.find((address) => address.isDefault)?.id ??
+          addresses[0]?.id ??
+          "new",
+      );
+      setIsNewAddressFormOpen(false);
+    } catch (error) {
+      setOrderError(
+        getApiErrorMessage(error, "Não foi possível carregar seus endereços."),
+      );
+    }
+  }, [session, setValue]);
 
   const fillAddressFields = useCallback((address: Address) => {
     setValue("postalCode", address.postalCode, { shouldValidate: true });
@@ -115,10 +166,22 @@ export function CheckoutPage({
     [setValue],
   );
   const { resetStatus: resetCepStatus, status: cepStatus } = useCepLookup({
-    enabled: fulfillment === "delivery" && isNewAddress,
+    enabled: fulfillment === "delivery" && shouldShowNewAddressForm,
     onFound: fillAddressFromCep,
     postalCode,
   });
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      loadClientAddresses();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadClientAddresses]);
+
+  useEffect(() => {
+    return subscribeClientProfileChanged(loadClientAddresses);
+  }, [loadClientAddresses]);
 
   useEffect(() => {
     if (fulfillment !== "delivery" || isNewAddress) {
@@ -158,10 +221,12 @@ export function CheckoutPage({
     onChange(value);
 
     if (value === "new") {
+      setIsNewAddressFormOpen(true);
       clearAddressFields();
       return;
     }
 
+    setIsNewAddressFormOpen(false);
     const selectedAddress = savedAddresses.find(
       (address) => String(address.id) === value,
     );
@@ -176,41 +241,170 @@ export function CheckoutPage({
       return;
     }
 
-    if (form.fulfillment === "delivery" && form.deliveryAddressId === "new") {
-      const newAddress: Address = {
-        city: form.city,
-        complement: form.complement,
-        district: form.district,
-        id: getNextAddressId(savedAddresses),
-        isDefault: savedAddresses.length === 0,
-        label: form.addressLabel,
-        number: form.number,
-        postalCode: form.postalCode,
-        state: form.state,
-        street: form.street,
-      };
-
-      addSavedAddress(newAddress);
-      setSavedProfile(readSavedProfile());
+    if (!session) {
+      setOrderError("Entre ou crie uma conta para enviar o pedido.");
+      return;
     }
 
+    if (!storeId) {
+      setOrderError("Não foi possível identificar a loja deste cardápio.");
+      return;
+    }
+
+    if (
+      form.fulfillment === "delivery" &&
+      form.deliveryAddressId === "new" &&
+      !isNewAddressFormOpen
+    ) {
+      setIsNewAddressFormOpen(true);
+      setOrderError("Adicione um endereço para receber o pedido.");
+      return;
+    }
+
+    setOrderError("");
     setSubmittedForm(form);
     setIsConfirmOpen(true);
   }
 
-  function confirmOrder() {
-    if (!submittedForm) {
+  function handleInvalidSubmit() {
+    if (
+      fulfillment === "delivery" &&
+      deliveryAddressId === "new" &&
+      !isNewAddressFormOpen
+    ) {
+      setIsNewAddressFormOpen(true);
+      setOrderError("Adicione um endereço para receber o pedido.");
+    }
+  }
+
+  function openNewAddressForm() {
+    setValue("deliveryAddressId", "new", { shouldValidate: true });
+    clearAddressFields();
+    setIsNewAddressFormOpen(true);
+    setOrderError("");
+  }
+
+  async function confirmOrder() {
+    if (!submittedForm || !session) {
       return;
     }
 
-    addStoreOrder(
-      createStoreOrderFromCheckout({
+    setIsSubmittingOrder(true);
+    setOrderError("");
+
+    try {
+      const addressId = await resolveOrderAddressId(submittedForm);
+
+      const order = await createOrder({
+        addressId,
         form: submittedForm,
         items,
-        totalCents,
-      }),
-    );
+        storeId,
+        token: session.token,
+      });
+
+      setConfirmedOrder(order);
+    } catch (error) {
+      setOrderError(
+        getApiErrorMessage(error, "Não foi possível enviar o pedido."),
+      );
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  }
+
+  function finishConfirmedOrder() {
+    setConfirmedOrder(null);
     onOrderConfirmed();
+  }
+
+  async function saveNewAddress() {
+    if (!session) {
+      setOrderError("Entre ou crie uma conta para salvar endereço.");
+      return;
+    }
+
+    const isAddressValid = await trigger([
+      "addressLabel",
+      "postalCode",
+      "street",
+      "number",
+      "district",
+      "city",
+      "state",
+    ]);
+
+    if (!isAddressValid) {
+      setOrderError("Preencha os dados do endereço antes de salvar.");
+      return;
+    }
+
+    setIsSavingAddress(true);
+    setOrderError("");
+
+    try {
+      const createdAddress = await createAddressFromForm(getValues());
+
+      setValue("deliveryAddressId", createdAddress.id, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      fillAddressFields(createdAddress);
+      setIsNewAddressFormOpen(false);
+      resetCepStatus();
+    } catch (error) {
+      setOrderError(
+        getApiErrorMessage(error, "Não foi possível salvar o endereço."),
+      );
+    } finally {
+      setIsSavingAddress(false);
+    }
+  }
+
+  async function resolveOrderAddressId(form: CheckoutForm) {
+    if (form.fulfillment === "pickup") {
+      return undefined;
+    }
+
+    if (form.deliveryAddressId !== "new") {
+      return form.deliveryAddressId;
+    }
+
+    const createdAddress = await createAddressFromForm(form);
+
+    return createdAddress.id;
+  }
+
+  async function createAddressFromForm(form: CheckoutForm) {
+    const newAddress: Address = {
+      city: form.city,
+      complement: form.complement,
+      district: form.district,
+      id: "",
+      isDefault: savedAddresses.length === 0,
+      label: form.addressLabel,
+      number: form.number,
+      postalCode: form.postalCode,
+      state: form.state,
+      street: form.street,
+    };
+    const createdAddress = await createClientAddress(
+      session!.token,
+      mapAddressToApiInput(newAddress),
+    );
+
+    setSavedProfile((currentProfile) => ({
+      ...currentProfile,
+      addresses: [
+        ...currentProfile.addresses.map((address) => ({
+          ...address,
+          isDefault: createdAddress.isDefault ? false : address.isDefault,
+        })),
+        createdAddress,
+      ],
+    }));
+
+    return createdAddress;
   }
 
   return (
@@ -226,13 +420,16 @@ export function CheckoutPage({
             Cardápio
           </button>
           <BrandLogo />
+          <div className="justify-self-end">
+            <ProfileDialog />
+          </div>
         </div>
       </header>
 
       <form
         className="mx-auto grid max-w-330 gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-12 lg:py-12"
         noValidate
-        onSubmit={handleSubmit(handleValidSubmit)}
+        onSubmit={handleSubmit(handleValidSubmit, handleInvalidSubmit)}
       >
         <div>
           <div className="mb-8">
@@ -245,6 +442,19 @@ export function CheckoutPage({
           </div>
 
           <div className="space-y-6">
+            {!session ? (
+              <CheckoutCard
+                icon={<PersonIcon className="h-5 w-5" />}
+                title="Conta do Cliente"
+              >
+                <p className="mb-4 text-body-sm font-medium leading-relaxed text-text-muted">
+                  Faça login ou crie sua conta para salvar endereços e enviar o
+                  pedido para a loja.
+                </p>
+                <ProfileDialog triggerLabel="Entrar ou criar conta" />
+              </CheckoutCard>
+            ) : null}
+
             <CheckoutCard
               icon={<RocketIcon className="h-5 w-5" />}
               title="Opções de Recebimento"
@@ -338,7 +548,27 @@ export function CheckoutPage({
                   </div>
                 ) : null}
 
-                {isNewAddress ? (
+                {savedAddresses.length === 0 && !shouldShowNewAddressForm ? (
+                  <div className="rounded-lg border border-dashed border-border-muted bg-white px-5 py-6 text-center">
+                    <DrawingPinFilledIcon className="mx-auto h-8 w-8 text-primary-dark" />
+                    <p className="mt-3 text-body-sm font-extrabold text-text-strong">
+                      Nenhum endereço cadastrado
+                    </p>
+                    <p className="mx-auto mt-2 max-w-md text-caption font-medium leading-relaxed text-text-muted">
+                      Adicione um endereço para receber seu pedido por entrega.
+                    </p>
+                    <button
+                      className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-button font-extrabold text-white transition hover:bg-primary-hover"
+                      onClick={openNewAddressForm}
+                      type="button"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Adicionar endereço
+                    </button>
+                  </div>
+                ) : null}
+
+                {shouldShowNewAddressForm ? (
                   <div className="grid gap-4 md:grid-cols-[0.6fr_1.4fr]">
                     <Field
                       className="md:col-span-2"
@@ -397,6 +627,15 @@ export function CheckoutPage({
                       placeholder="UF"
                       registration={register("state")}
                     />
+                    <button
+                      className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input md:col-span-2"
+                      disabled={isSavingAddress}
+                      onClick={saveNewAddress}
+                      type="button"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      {isSavingAddress ? "Salvando..." : "Criar endereço"}
+                    </button>
                   </div>
                 ) : null}
               </CheckoutCard>
@@ -472,7 +711,19 @@ export function CheckoutPage({
           </div>
         </div>
 
-        <OrderCheckoutSummary items={items} totalCents={totalCents} />
+        <div>
+          <OrderCheckoutSummary items={items} totalCents={totalCents} />
+          {orderError ? (
+            <p className="mt-4 rounded-lg border border-danger/30 bg-white px-4 py-3 text-caption font-bold text-danger">
+              {orderError}
+            </p>
+          ) : null}
+          {isSubmittingOrder ? (
+            <p className="mt-3 text-center text-caption font-bold text-primary-dark">
+              Enviando pedido...
+            </p>
+          ) : null}
+        </div>
       </form>
 
       <ConfirmOrderDialog
@@ -480,6 +731,12 @@ export function CheckoutPage({
         onOpenChange={setIsConfirmOpen}
         open={isConfirmOpen}
         totalCents={totalCents}
+      />
+      <OrderReceivedDialog
+        onClose={finishConfirmedOrder}
+        open={Boolean(confirmedOrder)}
+        order={confirmedOrder}
+        phone={phone}
       />
     </div>
   );

@@ -18,11 +18,17 @@ export function ProductCard({ onAddToCart, product }: ProductCardProps) {
         className="overflow-hidden rounded-lg bg-white text-left shadow-[0_10px_28px_rgba(94,54,30,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(94,54,30,0.16)]"
       >
         <div className="relative aspect-[1.45] overflow-hidden bg-surface-image">
-          <img
-            alt={product.name}
-            className="h-full w-full object-cover"
-            src={product.imageUrl}
-          />
+          {product.imageUrl ? (
+            <img
+              alt={product.name}
+              className="h-full w-full object-cover"
+              src={product.imageUrl}
+            />
+          ) : (
+            <div className="grid h-full w-full place-items-center bg-surface-soft text-primary-dark">
+              <BadgeIcon className="h-10 w-10" />
+            </div>
+          )}
           <span
             className={`absolute left-4 top-4 grid h-6 w-6 place-items-center rounded-full shadow-sm ${product.badgeColor}`}
           >

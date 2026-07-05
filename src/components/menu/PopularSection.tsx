@@ -42,7 +42,9 @@ export function PopularSection({
             Nenhum produto encontrado
           </h2>
           <p className="mx-auto mt-3 max-w-md text-body-sm font-medium leading-relaxed text-text-muted">
-            Tente buscar por outro sabor, bebida, acompanhamento ou combo.
+            {hasSearch
+              ? "Tente buscar por outro sabor, bebida, acompanhamento ou combo."
+              : "A loja ainda não possui produtos publicados na API."}
           </p>
         </div>
       ) : null}

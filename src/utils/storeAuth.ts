@@ -1,24 +1,29 @@
-export const storeCredentials = {
-  login: "loja@fastburguer.com",
-  name: "Fast Burguer",
-  password: "fastburguer123",
+import type { ApiStore, ApiStoreUser } from "../types/api";
+
+export type StoreSession = {
+  store: ApiStore | null;
+  storeUser: ApiStoreUser;
+  token: string;
 };
 
 const storeSessionKey = "fast-burguer-store-session";
 
-export function validateStoreCredentials(login: string, password: string) {
-  return (
-    login.trim().toLowerCase() === storeCredentials.login &&
-    password === storeCredentials.password
-  );
+export function readStoreSession(): StoreSession | null {
+  try {
+    const savedSession = window.localStorage.getItem(storeSessionKey);
+
+    if (!savedSession) {
+      return null;
+    }
+
+    return JSON.parse(savedSession) as StoreSession;
+  } catch {
+    return null;
+  }
 }
 
-export function readStoreSession() {
-  return window.localStorage.getItem(storeSessionKey) === "active";
-}
-
-export function writeStoreSession() {
-  window.localStorage.setItem(storeSessionKey, "active");
+export function writeStoreSession(session: StoreSession) {
+  window.localStorage.setItem(storeSessionKey, JSON.stringify(session));
 }
 
 export function clearStoreSession() {

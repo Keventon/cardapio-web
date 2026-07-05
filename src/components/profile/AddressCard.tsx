@@ -9,8 +9,8 @@ import type { Address } from "../../types/profile";
 type AddressCardProps = {
   address: Address;
   onEdit: (address: Address) => void;
-  onRemove: (id: number) => void;
-  onSetDefault: (id: number) => void;
+  onRemove: (id: string) => void;
+  onSetDefault: (id: string) => void;
 };
 
 export function AddressCard({
