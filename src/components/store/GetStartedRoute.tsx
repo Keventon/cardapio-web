@@ -6,7 +6,6 @@ export function GetStartedRoute() {
 
   return (
     <StoreGetStartedPage
-      onBackToMenu={() => navigate("/")}
       onLogin={() => navigate("/loja/login")}
       onSignUp={() => navigate("/loja/cadastro")}
     />

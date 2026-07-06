@@ -9,27 +9,44 @@ import {
   storeProductSchema,
 } from "../../forms/storeProductForm";
 import type { StoreProductForm } from "../../forms/storeProductForm";
-import { createProduct } from "../../services/storeApi";
+import { createProduct, updateProduct } from "../../services/storeApi";
 import type { StoreProduct } from "../../types/storeMenu";
-import { formatCurrencyInput, parseCurrencyToCents } from "../../utils/currency";
+import { formatCurrency, formatCurrencyInput, parseCurrencyToCents } from "../../utils/currency";
+import { resolveStoreImageUrl } from "../../utils/imageUrl";
 
 type AddProductDialogProps = {
   categoryId: string;
   categoryName: string;
-  onCreated: (product: StoreProduct) => void;
   onOpenChange: (open: boolean) => void;
+  onSaved: (product: StoreProduct) => void;
   open: boolean;
+  product?: StoreProduct;
 };
+
+const acceptedImageTypes = "image/jpeg,image/png,image/webp,image/gif";
+
+function productToFormValues(product: StoreProduct): StoreProductForm {
+  return {
+    description: product.description ?? "",
+    enabled: product.enabled,
+    imageUrl: "",
+    name: product.name,
+    price: formatCurrency(product.price),
+  };
+}
 
 export function AddProductDialog({
   categoryId,
   categoryName,
-  onCreated,
   onOpenChange,
+  onSaved,
   open,
+  product,
 }: AddProductDialogProps) {
+  const isEditing = Boolean(product);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const {
     control,
     formState: { errors },
@@ -38,53 +55,70 @@ export function AddProductDialog({
     reset,
     setValue,
   } = useForm<StoreProductForm>({
-    defaultValues: emptyStoreProductForm,
+    // Seeded from `product` at construction time (not via `reset()` later):
+    // the edit instance always mounts fresh, and a `reset()` call during that
+    // first render fires before useWatch's subscription exists to catch it,
+    // so the controlled `price` field would silently miss the update.
+    defaultValues: product ? productToFormValues(product) : emptyStoreProductForm,
     resolver: zodResolver(storeProductSchema),
   });
   const price = useWatch({ control, name: "price" });
+  // Starts false (not `open`) so a dialog that mounts already open — like
+  // the edit instance, which is only rendered while a product is selected —
+  // still detects the "just opened" transition on its first render and
+  // pre-fills from `product` instead of staying on the empty defaults.
+  const [wasOpen, setWasOpen] = useState(false);
+
+  if (open !== wasOpen) {
+    setWasOpen(open);
+
+    if (open) {
+      reset(product ? productToFormValues(product) : emptyStoreProductForm);
+      setImageFile(null);
+      setError("");
+    }
+  }
 
   async function handleValidSubmit(form: StoreProductForm) {
     setIsSubmitting(true);
     setError("");
 
     try {
-      const product = await createProduct(categoryId, {
+      const payload = {
         description: form.description || undefined,
         enabled: form.enabled,
-        imageUrl: form.imageUrl || undefined,
+        imageFile: imageFile ?? undefined,
+        imageUrl: imageFile ? undefined : form.imageUrl || undefined,
         name: form.name,
         price: parseCurrencyToCents(form.price),
-      });
+      };
 
-      onCreated(product);
-      reset(emptyStoreProductForm);
+      const savedProduct = product
+        ? await updateProduct(product.id, payload)
+        : await createProduct(categoryId, payload);
+
+      onSaved(savedProduct);
       onOpenChange(false);
     } catch {
-      setError("Não foi possível criar o produto. Tente novamente.");
+      setError(
+        isEditing
+          ? "Não foi possível salvar as alterações. Tente novamente."
+          : "Não foi possível criar o produto. Tente novamente.",
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <Dialog.Root
-      onOpenChange={(nextOpen) => {
-        onOpenChange(nextOpen);
-
-        if (!nextOpen) {
-          setError("");
-          reset(emptyStoreProductForm);
-        }
-      }}
-      open={open}
-    >
+    <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85dvh] w-[min(92vw,480px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg bg-white shadow-2xl focus:outline-none">
           <div className="flex items-start justify-between gap-5 p-6 pb-0">
             <div>
               <Dialog.Title className="text-section-title font-extrabold leading-tight text-text-strong">
-                Novo produto
+                {isEditing ? "Editar produto" : "Novo produto"}
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-body-sm font-medium text-text-muted">
                 Categoria: {categoryName}
@@ -130,12 +164,57 @@ export function AddProductDialog({
               placeholder="R$ 0,00"
               value={price}
             />
-            <Field
-              error={errors.imageUrl?.message}
-              label="URL da imagem"
-              placeholder="Opcional"
-              registration={register("imageUrl")}
-            />
+            <div>
+              <span className="mb-2 block text-caption font-extrabold text-text-strong">
+                Foto do produto
+              </span>
+
+              {isEditing && product?.imageUrl && !imageFile ? (
+                <div className="mb-3 flex items-center gap-3">
+                  <img
+                    alt={product.name}
+                    className="h-12 w-12 rounded-lg object-cover"
+                    src={resolveStoreImageUrl(product.imageUrl)}
+                  />
+                  <span className="text-caption font-medium text-text-muted">
+                    Imagem atual — escolha um arquivo abaixo pra substituir.
+                  </span>
+                </div>
+              ) : null}
+
+              {imageFile ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border-input bg-surface px-4 py-3">
+                  <span className="truncate text-body-sm font-medium text-text-strong">
+                    {imageFile.name}
+                  </span>
+                  <button
+                    className="shrink-0 text-caption font-extrabold text-danger"
+                    onClick={() => setImageFile(null)}
+                    type="button"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    accept={acceptedImageTypes}
+                    className="block w-full text-body-sm font-medium text-text-strong file:mr-4 file:h-10 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:text-caption file:font-extrabold file:text-white file:transition hover:file:bg-primary-hover"
+                    onChange={(event) =>
+                      setImageFile(event.target.files?.[0] ?? null)
+                    }
+                    type="file"
+                  />
+                  <Field
+                    className="mt-3"
+                    error={errors.imageUrl?.message}
+                    label="ou informe uma URL de imagem"
+                    placeholder="Opcional"
+                    registration={register("imageUrl")}
+                  />
+                </>
+              )}
+            </div>
 
             <label className="flex items-center gap-2 text-body-sm font-semibold text-text-strong">
               <input
@@ -155,7 +234,13 @@ export function AddProductDialog({
               disabled={isSubmitting}
               type="submit"
             >
-              {isSubmitting ? "Criando..." : "Criar produto"}
+              {isSubmitting
+                ? isEditing
+                  ? "Salvando..."
+                  : "Criando..."
+                : isEditing
+                  ? "Salvar alterações"
+                  : "Criar produto"}
             </button>
           </form>
         </Dialog.Content>

@@ -67,6 +67,12 @@ export type ApiOrder = {
   number: number;
   paymentMethod?: ApiPaymentMethod;
   status: ApiOrderStatus;
+  store?: {
+    id: string;
+    logoUrl: string | null;
+    name: string;
+    slug: string;
+  };
   total: number;
 };
 

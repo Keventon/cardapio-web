@@ -6,7 +6,6 @@ export function SignupRoute() {
 
   return (
     <StoreSignupPage
-      onBackToMenu={() => navigate("/")}
       onGoToLogin={() => navigate("/loja/login")}
       onRegistered={() =>
         navigate("/loja/login", { state: { justRegistered: true } })

@@ -15,13 +15,11 @@ import { formatCpf } from "../../utils/cpf";
 import { slugify } from "../../utils/slug";
 
 type StoreSignupPageProps = {
-  onBackToMenu: () => void;
   onGoToLogin: () => void;
   onRegistered: () => void;
 };
 
 export function StoreSignupPage({
-  onBackToMenu,
   onGoToLogin,
   onRegistered,
 }: StoreSignupPageProps) {
@@ -87,19 +85,13 @@ export function StoreSignupPage({
             <BrandLogo />
           </div>
           <h1 className="max-w-150 text-display font-extrabold leading-tight">
-            Painel da hamburgueria
+            Painel da loja
           </h1>
           <p className="mt-5 max-w-125 text-body font-medium leading-relaxed text-text-muted">
             Receba pedidos do cardápio digital, acompanhe o preparo e marque o
             despacho em uma área separada do cliente.
           </p>
-          <button
-            className="mt-8 h-11 rounded-lg border border-border-input bg-white px-5 text-button font-extrabold text-primary-dark transition hover:bg-surface-hover"
-            onClick={onBackToMenu}
-            type="button"
-          >
-            Ver cardápio do cliente
-          </button>
+          
         </section>
 
         <form

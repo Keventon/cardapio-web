@@ -11,9 +11,8 @@ export function BrandLogo({ stacked = false }: BrandLogoProps) {
         <BurgerIcon className="h-5 w-5" />
       </span>
       <span>
-        Fast
+        Hambre
         {stacked ? <br /> : " "}
-        Burguer
       </span>
     </span>
   );

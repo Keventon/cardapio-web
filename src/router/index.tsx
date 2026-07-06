@@ -4,5 +4,5 @@ import { storeRoutes } from "./storeRoutes";
 
 export const router = createBrowserRouter([
   ...storeRoutes,
-  { element: <ClientApp />, path: "/*" },
+  { element: <ClientApp />, path: "/:slug" },
 ]);

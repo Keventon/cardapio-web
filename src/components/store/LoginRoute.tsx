@@ -12,7 +12,6 @@ export function LoginRoute() {
     <StoreLoginPage
       justRegistered={justRegistered}
       onAuthenticated={() => navigate("/loja/pedidos")}
-      onBackToMenu={() => navigate("/")}
       onGoToSignUp={() => navigate("/loja/cadastro")}
     />
   );

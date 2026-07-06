@@ -24,9 +24,7 @@ import { useStoreAuthStore } from "../../stores/storeAuthStore";
 import { StoreSidebar } from "./StoreSidebar";
 
 type StoreOrdersPageProps = {
-  onBackToMenu: () => void;
   onLogout: () => void;
-  session: StoreSession;
 };
 
 type FilterKey =
@@ -147,11 +145,7 @@ function getSecondaryAction(
   return null;
 }
 
-export function StoreOrdersPage({
-  onBackToMenu,
-  onLogout,
-  session,
-}: StoreOrdersPageProps) {
+export function StoreOrdersPage({ onLogout }: StoreOrdersPageProps) {
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -304,11 +298,7 @@ export function StoreOrdersPage({
   return (
     <div className="min-h-screen bg-surface-checkout text-text-strong">
       <div className="grid min-h-screen xl:grid-cols-[16rem_minmax(0,1fr)]">
-        <StoreSidebar
-          onBackToMenu={onBackToMenu}
-          onLogout={handleLogout}
-          storeName={session.store?.name ?? "Loja"}
-        />
+        <StoreSidebar onLogout={handleLogout} />
 
         <main className="min-w-0">
           <header className="sticky top-0 z-20 border-b border-border-light bg-surface/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">

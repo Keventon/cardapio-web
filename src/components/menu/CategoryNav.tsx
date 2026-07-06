@@ -8,7 +8,8 @@ import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import type { MenuCategory } from "../../types/menu";
-import { BrandLogo } from "../brand/BrandLogo";
+import { BurgerIcon } from "../icons/BurgerIcon";
+import { OrderHistoryDrawer } from "../orders/OrderHistoryDrawer";
 import { ProfileDialog } from "../profile/ProfileDialog";
 
 const COMPACT_HEADER_SCROLL_START = 190;
@@ -21,6 +22,7 @@ type CategoryNavProps = {
   onCategoryChange: (category: MenuCategory["id"]) => void;
   onSearchChange: (query: string) => void;
   searchQuery: string;
+  storeName: string;
 };
 
 export function CategoryNav({
@@ -30,6 +32,7 @@ export function CategoryNav({
   onCategoryChange,
   onSearchChange,
   searchQuery,
+  storeName,
 }: CategoryNavProps) {
   const [isCompact, setIsCompact] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -88,7 +91,12 @@ export function CategoryNav({
             >
               <div className="min-w-0">
                 <a className="inline-flex" href="#menu">
-                  <BrandLogo />
+                  <span className="inline-flex items-center gap-2 text-brand font-extrabold leading-tight text-primary-dark">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-soft text-primary-dark">
+                      <BurgerIcon className="h-5 w-5" />
+                    </span>
+                    <span className="truncate">{storeName}</span>
+                  </span>
                 </a>
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption font-extrabold text-text-muted">
@@ -123,6 +131,8 @@ export function CategoryNav({
                     </span>
                   </button>
                 </Dialog.Trigger>
+
+                <OrderHistoryDrawer />
 
                 <ProfileDialog />
               </div>

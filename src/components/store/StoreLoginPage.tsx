@@ -2,36 +2,26 @@ import { BackpackIcon, LockClosedIcon, PersonIcon } from "@radix-ui/react-icons"
 import axios from "axios";
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { createStore, getStore, loginStoreUser } from "../../api/store";
-import { getApiErrorMessage } from "../../api/http";
 import { BrandLogo } from "../brand/BrandLogo";
 import { loginStoreUser } from "../../services/storeApi";
 import { useStoreAuthStore } from "../../stores/storeAuthStore";
 
 type StoreLoginPageProps = {
   justRegistered?: boolean;
-  onBackToMenu: () => void;
   onAuthenticated: () => void;
   onGoToSignUp: () => void;
 };
 
 export function StoreLoginPage({
   justRegistered = false,
-  onBackToMenu,
   onAuthenticated,
   onGoToSignUp,
 }: StoreLoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [storeName, setStoreName] = useState("");
-  const [storeSlug, setStoreSlug] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [ownerCpf, setOwnerCpf] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
@@ -60,19 +50,12 @@ export function StoreLoginPage({
             <BrandLogo />
           </div>
           <h1 className="max-w-150 text-display font-extrabold leading-tight">
-            Painel da hamburgueria
+            Painel da loja
           </h1>
           <p className="mt-5 max-w-125 text-body font-medium leading-relaxed text-text-muted">
             Receba pedidos do cardápio digital, acompanhe o preparo e marque o
             despacho em uma área separada do cliente.
           </p>
-          <button
-            className="mt-8 h-11 rounded-lg border border-border-input bg-white px-5 text-button font-extrabold text-primary-dark transition hover:bg-surface-hover"
-            onClick={onBackToMenu}
-            type="button"
-          >
-            Ver cardápio do cliente
-          </button>
         </section>
 
         <form
@@ -87,7 +70,7 @@ export function StoreLoginPage({
           </div>
 
           <h2 className="text-page-title font-extrabold leading-tight">
-            {mode === "login" ? "Login da loja" : "Cadastrar loja"}
+            Login da loja
           </h2>
           <p className="mt-2 text-body-sm font-medium text-text-muted">
             Entre para visualizar e atualizar os pedidos recebidos.
@@ -101,7 +84,7 @@ export function StoreLoginPage({
 
           <label className="mt-7 block">
             <span className="mb-2 block text-caption font-extrabold text-text-strong">
-              {mode === "login" ? "Login" : "E-mail do dono"}
+              Login
             </span>
             <span className="relative block">
               <PersonIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
@@ -160,22 +143,4 @@ export function StoreLoginPage({
       </div>
     </div>
   );
-}
-
-function formatCpf(value: string) {
-  return value
-    .replace(/\D/g, "")
-    .slice(0, 11)
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-}
-
-function getSlugFromName(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }

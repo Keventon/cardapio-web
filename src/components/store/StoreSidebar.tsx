@@ -1,25 +1,27 @@
 import { BackpackIcon, Cross2Icon, IdCardIcon } from "@radix-ui/react-icons";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useStoreAuthStore } from "../../stores/storeAuthStore";
 
 type StoreSidebarProps = {
-  onBackToMenu: () => void;
   onLogout: () => void;
 };
 
-export function StoreSidebar({ onBackToMenu, onLogout }: StoreSidebarProps) {
+export function StoreSidebar({ onLogout }: StoreSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const storeUser = useStoreAuthStore((state) => state.storeUser);
+  const storeName = storeUser?.storeName;
 
   return (
     <aside className="border-b border-border-light bg-white xl:flex xl:min-h-screen xl:flex-col xl:border-b-0 xl:border-r">
       <div className="flex h-16 items-center gap-3 border-b border-border-light px-4 sm:px-6 xl:h-20">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-[1rem] font-extrabold text-white">
-          F
+          {(storeName ?? "Loja").charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0">
           <p className="truncate text-[1rem] font-extrabold text-text-strong">
-            Fast Burguer
+            {storeName ?? "Loja"}
           </p>
           <p className="text-caption font-bold text-primary">Área da loja</p>
         </div>
@@ -46,14 +48,17 @@ export function StoreSidebar({ onBackToMenu, onLogout }: StoreSidebarProps) {
           label="Cardápio"
           onClick={() => navigate("/loja/cardapio")}
         />
-        <button
-          className="flex h-10 shrink-0 items-center gap-3 rounded-lg px-3 text-body-sm font-extrabold text-text-muted transition hover:bg-surface-checkout xl:w-full"
-          onClick={onBackToMenu}
-          type="button"
-        >
-          <IdCardIcon className="h-5 w-5" />
-          Ver loja
-        </button>
+        {storeUser?.storeSlug ? (
+          <a
+            className="flex h-10 shrink-0 items-center gap-3 rounded-lg px-3 text-body-sm font-extrabold text-text-muted transition hover:bg-surface-checkout xl:w-full"
+            href={`/${storeUser.storeSlug}`}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <IdCardIcon className="h-5 w-5" />
+            Ver loja
+          </a>
+        ) : null}
       </nav>
 
       <div className="hidden border-t border-border-light p-4 xl:mt-auto xl:block">

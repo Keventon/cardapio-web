@@ -70,6 +70,7 @@ export function ProfileDialog({
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
   const {
     formState: { errors: loginErrors },
     handleSubmit: handleLoginSubmit,
@@ -312,6 +313,7 @@ export function ProfileDialog({
       setEditingAddressId(null);
       resetAddress(emptyAddressForm);
       resetCepStatus();
+      setIsAddressFormOpen(false);
     } catch (error) {
       setAddressMessage(
         getApiErrorMessage(error, "Não foi possível salvar o endereço."),
@@ -337,6 +339,7 @@ export function ProfileDialog({
         setEditingAddressId(null);
         resetAddress(emptyAddressForm);
         resetCepStatus();
+        setIsAddressFormOpen(false);
       }
 
       setAddresses((currentAddresses) => {
@@ -382,6 +385,13 @@ export function ProfileDialog({
     }
   }
 
+  function openAddAddress() {
+    setEditingAddressId(null);
+    resetAddress(emptyAddressForm);
+    resetCepStatus();
+    setIsAddressFormOpen(true);
+  }
+
   function editAddress(address: Address) {
     setEditingAddressId(address.id);
     resetAddress({
@@ -394,12 +404,14 @@ export function ProfileDialog({
       state: address.state,
       street: address.street,
     });
+    setIsAddressFormOpen(true);
   }
 
   function cancelAddressEdit() {
     setEditingAddressId(null);
     resetAddress(emptyAddressForm);
     resetCepStatus();
+    setIsAddressFormOpen(false);
   }
 
   function logout() {
@@ -651,95 +663,115 @@ export function ProfileDialog({
                       {addressMessage}
                     </p>
                   ) : null}
-                </section>
 
-                <Separator.Root className="my-6 h-px bg-border-muted" />
-
-                <section>
-                  <h2 className="text-card-title font-extrabold text-text-strong">
-                    {editingAddressId ? "Editar Endereço" : "Adicionar Endereço"}
-                  </h2>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Field
-                      className="sm:col-span-2"
-                      error={addressErrors.postalCode?.message}
-                      label="CEP"
-                      onChange={(value) => {
-                        if (value.replace(/\D/g, "").length !== 8) {
-                          resetCepStatus();
-                        }
-
-                        setAddressValue("postalCode", formatPostalCode(value), {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                        });
-                      }}
-                      placeholder="00000-000"
-                      value={addressPostalCode}
-                    />
-                    <CepFeedback className="sm:col-span-2" status={cepStatus} />
-                    <Field
-                      error={addressErrors.label?.message}
-                      label="Apelido"
-                      placeholder="Casa, trabalho..."
-                      registration={registerAddress("label")}
-                    />
-                    <Field
-                      error={addressErrors.district?.message}
-                      label="Bairro"
-                      placeholder="Centro"
-                      registration={registerAddress("district")}
-                    />
-                    <Field
-                      className="sm:col-span-2"
-                      error={addressErrors.street?.message}
-                      label="Rua/Avenida"
-                      placeholder="Rua das Flores"
-                      registration={registerAddress("street")}
-                    />
-                    <Field
-                      error={addressErrors.number?.message}
-                      label="Número"
-                      placeholder="123"
-                      registration={registerAddress("number")}
-                    />
-                    <Field
-                      label="Complemento"
-                      placeholder="Apto, bloco..."
-                      registration={registerAddress("complement")}
-                    />
-                    <Field
-                      label="Cidade"
-                      placeholder="Cidade"
-                      registration={registerAddress("city")}
-                    />
-                    <Field
-                      label="UF"
-                      placeholder="UF"
-                      registration={registerAddress("state")}
-                    />
-                  </div>
-
-                  <button
-                    className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"
-                    disabled={isAddressSubmitting}
-                    onClick={handleAddressSubmit(saveAddress)}
-                    type="button"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    {editingAddressId ? "Atualizar endereço" : "Salvar endereço"}
-                  </button>
-
-                  {editingAddressId ? (
+                  {!isAddressFormOpen ? (
                     <button
-                      className="mt-3 h-11 w-full rounded-lg border border-border-input bg-white text-button font-extrabold text-text-muted transition hover:bg-surface-checkout"
-                      onClick={cancelAddressEdit}
+                      className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border-input bg-white text-button font-extrabold text-primary-dark transition hover:bg-surface-hover"
+                      onClick={openAddAddress}
                       type="button"
                     >
-                      Cancelar edição
+                      <PlusIcon className="h-4 w-4" />
+                      Adicionar endereço
                     </button>
                   ) : null}
                 </section>
+
+                {isAddressFormOpen ? (
+                  <>
+                    <Separator.Root className="my-6 h-px bg-border-muted" />
+
+                    <section>
+                      <h2 className="text-card-title font-extrabold text-text-strong">
+                        {editingAddressId ? "Editar Endereço" : "Adicionar Endereço"}
+                      </h2>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <Field
+                          className="sm:col-span-2"
+                          error={addressErrors.postalCode?.message}
+                          label="CEP"
+                          onChange={(value) => {
+                            if (value.replace(/\D/g, "").length !== 8) {
+                              resetCepStatus();
+                            }
+
+                            setAddressValue(
+                              "postalCode",
+                              formatPostalCode(value),
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              },
+                            );
+                          }}
+                          placeholder="00000-000"
+                          value={addressPostalCode}
+                        />
+                        <CepFeedback
+                          className="sm:col-span-2"
+                          status={cepStatus}
+                        />
+                        <Field
+                          error={addressErrors.label?.message}
+                          label="Apelido"
+                          placeholder="Casa, trabalho..."
+                          registration={registerAddress("label")}
+                        />
+                        <Field
+                          error={addressErrors.district?.message}
+                          label="Bairro"
+                          placeholder="Centro"
+                          registration={registerAddress("district")}
+                        />
+                        <Field
+                          className="sm:col-span-2"
+                          error={addressErrors.street?.message}
+                          label="Rua/Avenida"
+                          placeholder="Rua das Flores"
+                          registration={registerAddress("street")}
+                        />
+                        <Field
+                          error={addressErrors.number?.message}
+                          label="Número"
+                          placeholder="123"
+                          registration={registerAddress("number")}
+                        />
+                        <Field
+                          label="Complemento"
+                          placeholder="Apto, bloco..."
+                          registration={registerAddress("complement")}
+                        />
+                        <Field
+                          label="Cidade"
+                          placeholder="Cidade"
+                          registration={registerAddress("city")}
+                        />
+                        <Field
+                          label="UF"
+                          placeholder="UF"
+                          registration={registerAddress("state")}
+                        />
+                      </div>
+
+                      <button
+                        className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"
+                        disabled={isAddressSubmitting}
+                        onClick={handleAddressSubmit(saveAddress)}
+                        type="button"
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                        {editingAddressId ? "Atualizar endereço" : "Salvar endereço"}
+                      </button>
+
+                      <button
+                        className="mt-3 h-11 w-full rounded-lg border border-border-input bg-white text-button font-extrabold text-text-muted transition hover:bg-surface-checkout"
+                        onClick={cancelAddressEdit}
+                        type="button"
+                      >
+                        {editingAddressId ? "Cancelar edição" : "Cancelar"}
+                      </button>
+                    </section>
+                  </>
+                ) : null}
               </>
             )}
           </div>

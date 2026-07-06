@@ -78,6 +78,7 @@ export async function createCategory(payload: CreateCategoryPayload) {
 type CreateProductPayload = {
   description?: string;
   enabled?: boolean;
+  imageFile?: File;
   imageUrl?: string;
   name: string;
   price: number;
@@ -85,8 +86,29 @@ type CreateProductPayload = {
 
 export async function createProduct(
   categoryId: string,
-  payload: CreateProductPayload,
+  { imageFile, ...payload }: CreateProductPayload,
 ) {
+  if (imageFile) {
+    const formData = new FormData();
+
+    formData.append("name", payload.name);
+    formData.append("price", String(payload.price));
+    formData.append("enabled", String(payload.enabled ?? false));
+
+    if (payload.description) {
+      formData.append("description", payload.description);
+    }
+
+    formData.append("image", imageFile);
+
+    const { data } = await api.post<StoreProduct>(
+      `store/categories/${categoryId}/products`,
+      formData,
+    );
+
+    return data;
+  }
+
   const { data } = await api.post<StoreProduct>(
     `store/categories/${categoryId}/products`,
     payload,
@@ -98,6 +120,48 @@ export async function createProduct(
 export async function getStoreProducts() {
   const { data } = await api.get<StoreCategoryWithProducts[]>(
     "store/products",
+  );
+
+  return data;
+}
+
+type UpdateProductPayload = {
+  description?: string;
+  enabled?: boolean;
+  imageFile?: File;
+  imageUrl?: string;
+  name: string;
+  price: number;
+};
+
+export async function updateProduct(
+  productId: string,
+  { imageFile, ...payload }: UpdateProductPayload,
+) {
+  if (imageFile) {
+    const formData = new FormData();
+
+    formData.append("name", payload.name);
+    formData.append("price", String(payload.price));
+    formData.append("enabled", String(payload.enabled ?? false));
+
+    if (payload.description) {
+      formData.append("description", payload.description);
+    }
+
+    formData.append("image", imageFile);
+
+    const { data } = await api.put<StoreProduct>(
+      `store/products/${productId}`,
+      formData,
+    );
+
+    return data;
+  }
+
+  const { data } = await api.put<StoreProduct>(
+    `store/products/${productId}`,
+    payload,
   );
 
   return data;

@@ -2,13 +2,11 @@ import { BackpackIcon } from "@radix-ui/react-icons";
 import { BrandLogo } from "../brand/BrandLogo";
 
 type StoreGetStartedPageProps = {
-  onBackToMenu: () => void;
   onLogin: () => void;
   onSignUp: () => void;
 };
 
 export function StoreGetStartedPage({
-  onBackToMenu,
   onLogin,
   onSignUp,
 }: StoreGetStartedPageProps) {
@@ -20,19 +18,12 @@ export function StoreGetStartedPage({
             <BrandLogo />
           </div>
           <h1 className="max-w-150 text-display font-extrabold leading-tight">
-            Painel da hamburgueria
+            Painel da loja
           </h1>
           <p className="mt-5 max-w-125 text-body font-medium leading-relaxed text-text-muted">
             Receba pedidos do cardápio digital, acompanhe o preparo e marque o
             despacho em uma área separada do cliente.
           </p>
-          <button
-            className="mt-8 h-11 rounded-lg border border-border-input bg-white px-5 text-button font-extrabold text-primary-dark transition hover:bg-surface-hover"
-            onClick={onBackToMenu}
-            type="button"
-          >
-            Ver cardápio do cliente
-          </button>
         </section>
 
         <div className="rounded-lg bg-white p-6 shadow-[0_18px_42px_rgba(94,54,30,0.12)] sm:p-8">

@@ -72,3 +72,21 @@ function mapPaymentMethod(payment: CheckoutForm["payment"]): ApiPaymentMethod {
 
   return "CREDIT_CARD";
 }
+
+export async function listClientOrders(token: string) {
+  const { data } = await api.get<ApiOrder[]>("/clients/me/orders", {
+    headers: authHeaders(token),
+  });
+
+  return data;
+}
+
+export async function getClientOrderStreamTicket(token: string) {
+  const { data } = await api.post<{ ticket: string }>(
+    "/orders/stream-ticket",
+    undefined,
+    { headers: authHeaders(token) },
+  );
+
+  return data;
+}

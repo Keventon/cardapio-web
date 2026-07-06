@@ -1,4 +1,4 @@
-import { BackpackIcon, PlusIcon } from "@radix-ui/react-icons";
+import { BackpackIcon, Pencil2Icon, PlusIcon } from "@radix-ui/react-icons";
 import { useEffect, useState } from "react";
 import { AddCategoryDialog } from "./AddCategoryDialog";
 import { AddProductDialog } from "./AddProductDialog";
@@ -10,17 +10,20 @@ import type {
   StoreProduct,
 } from "../../types/storeMenu";
 import { formatCurrency } from "../../utils/currency";
+import { resolveStoreImageUrl } from "../../utils/imageUrl";
 
 type StoreMenuPageProps = {
-  onBackToMenu: () => void;
   onLogout: () => void;
 };
 
-export function StoreMenuPage({ onBackToMenu, onLogout }: StoreMenuPageProps) {
+export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
   const [categories, setCategories] = useState<StoreCategoryWithProducts[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<StoreProduct | null>(
+    null,
+  );
 
   useEffect(() => {
     let isIgnored = false;
@@ -53,20 +56,37 @@ export function StoreMenuPage({ onBackToMenu, onLogout }: StoreMenuPageProps) {
     onLogout();
   }
 
-  function handleProductCreated(categoryId: string, product: StoreProduct) {
+  function handleProductSaved(categoryId: string, product: StoreProduct) {
     setCategories((current) =>
-      current.map((category) =>
-        category.id === categoryId
-          ? { ...category, products: [...category.products, product] }
-          : category,
-      ),
+      current.map((category) => {
+        if (category.id !== categoryId) {
+          return category;
+        }
+
+        const alreadyExists = category.products.some(
+          (existing) => existing.id === product.id,
+        );
+
+        return {
+          ...category,
+          products: alreadyExists
+            ? category.products.map((existing) =>
+                existing.id === product.id ? product : existing,
+              )
+            : [...category.products, product],
+        };
+      }),
     );
   }
+
+  const editingCategory = editingProduct
+    ? categories.find((category) => category.id === editingProduct.categoryId)
+    : undefined;
 
   return (
     <div className="min-h-screen bg-surface-checkout text-text-strong">
       <div className="grid min-h-screen xl:grid-cols-[16rem_minmax(0,1fr)]">
-        <StoreSidebar onBackToMenu={onBackToMenu} onLogout={handleLogout} />
+        <StoreSidebar onLogout={handleLogout} />
 
         <main className="min-w-0">
           <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border-light bg-surface/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
@@ -122,7 +142,8 @@ export function StoreMenuPage({ onBackToMenu, onLogout }: StoreMenuPageProps) {
                 <CategorySection
                   category={category}
                   key={category.id}
-                  onProductCreated={handleProductCreated}
+                  onEditProduct={setEditingProduct}
+                  onProductSaved={handleProductSaved}
                 />
               ))}
             </div>
@@ -140,16 +161,33 @@ export function StoreMenuPage({ onBackToMenu, onLogout }: StoreMenuPageProps) {
         onOpenChange={setIsAddCategoryOpen}
         open={isAddCategoryOpen}
       />
+
+      {editingProduct && editingCategory ? (
+        <AddProductDialog
+          categoryId={editingCategory.id}
+          categoryName={editingCategory.name}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              setEditingProduct(null);
+            }
+          }}
+          onSaved={(product) => handleProductSaved(editingCategory.id, product)}
+          open={Boolean(editingProduct)}
+          product={editingProduct}
+        />
+      ) : null}
     </div>
   );
 }
 
 function CategorySection({
   category,
-  onProductCreated,
+  onEditProduct,
+  onProductSaved,
 }: {
   category: StoreCategoryWithProducts;
-  onProductCreated: (categoryId: string, product: StoreProduct) => void;
+  onEditProduct: (product: StoreProduct) => void;
+  onProductSaved: (categoryId: string, product: StoreProduct) => void;
 }) {
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
 
@@ -177,7 +215,11 @@ function CategorySection({
           </p>
         ) : (
           category.products.map((product) => (
-            <ProductRow key={product.id} product={product} />
+            <ProductRow
+              key={product.id}
+              onEdit={onEditProduct}
+              product={product}
+            />
           ))
         )}
 
@@ -194,26 +236,45 @@ function CategorySection({
       <AddProductDialog
         categoryId={category.id}
         categoryName={category.name}
-        onCreated={(product) => onProductCreated(category.id, product)}
         onOpenChange={setIsAddProductOpen}
+        onSaved={(product) => onProductSaved(category.id, product)}
         open={isAddProductOpen}
       />
     </section>
   );
 }
 
-function ProductRow({ product }: { product: StoreProduct }) {
+function ProductRow({
+  onEdit,
+  product,
+}: {
+  onEdit: (product: StoreProduct) => void;
+  product: StoreProduct;
+}) {
   return (
     <div className="flex items-center justify-between gap-4 p-4">
-      <div className="min-w-0">
-        <p className="truncate text-body-sm font-extrabold text-text-strong">
-          {product.name}
-        </p>
-        {product.description ? (
-          <p className="mt-1 truncate text-caption font-medium text-text-muted">
-            {product.description}
+      <div className="flex min-w-0 items-center gap-3">
+        {product.imageUrl ? (
+          <img
+            alt={product.name}
+            className="h-12 w-12 shrink-0 rounded-lg object-cover"
+            src={resolveStoreImageUrl(product.imageUrl)}
+          />
+        ) : (
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-surface-soft text-text-muted">
+            <BackpackIcon className="h-5 w-5" />
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-body-sm font-extrabold text-text-strong">
+            {product.name}
           </p>
-        ) : null}
+          {product.description ? (
+            <p className="mt-1 truncate text-caption font-medium text-text-muted">
+              {product.description}
+            </p>
+          ) : null}
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <span
@@ -228,6 +289,14 @@ function ProductRow({ product }: { product: StoreProduct }) {
         <strong className="text-body-sm font-extrabold text-text-strong">
           {formatCurrency(product.price)}
         </strong>
+        <button
+          aria-label={`Editar ${product.name}`}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-text-muted transition hover:bg-surface-hover"
+          onClick={() => onEdit(product)}
+          type="button"
+        >
+          <Pencil2Icon className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
