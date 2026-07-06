@@ -8,7 +8,7 @@ export function Footer() {
       </a>
 
       <p className="text-body-sm font-medium leading-relaxed text-text-muted">
-        © 2026 Fast Burguer. Todos os direitos reservados.
+        © 2026. Todos os direitos reservados.
       </p>
 
       <span aria-hidden="true" />

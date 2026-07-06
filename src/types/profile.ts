@@ -2,7 +2,7 @@ export type Address = {
   city: string;
   complement: string;
   district: string;
-  id: number;
+  id: string;
   isDefault: boolean;
   label: string;
   number: string;

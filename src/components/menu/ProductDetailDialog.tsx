@@ -10,7 +10,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as Separator from "@radix-ui/react-separator";
 import { useId, useState } from "react";
 import type { ReactNode } from "react";
-import type { AddToCartOptions, Product, ProductExtra } from "../../types/menu";
+import type { AddToCartOptions, Product } from "../../types/menu";
 import { formatCurrency } from "../../utils/currency";
 import { BrandLogo } from "../brand/BrandLogo";
 
@@ -56,27 +56,37 @@ export function ProductDetailDialog({
 }
 
 function ProductGallery({ product }: { product: Product }) {
+  const BadgeIcon = product.badgeIcon;
+  const images = product.gallery.length > 0 ? product.gallery : [];
   const [selectedImage, setSelectedImage] = useState(product.detailImageUrl);
+  const currentImage = selectedImage || product.detailImageUrl || images[0] || "";
 
   return (
     <div>
       <div className="relative aspect-[1.06] overflow-hidden rounded-lg bg-surface-image">
-        <img
-          alt={product.name}
-          className="h-full w-full object-cover"
-          src={selectedImage}
-        />
+        {currentImage ? (
+          <img
+            alt={product.name}
+            className="h-full w-full object-cover"
+            src={currentImage}
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center bg-surface-soft text-primary-dark">
+            <BadgeIcon className="h-16 w-16" />
+          </div>
+        )}
         <span className="absolute left-4 top-4 rounded-full bg-white/90 px-4 py-1.5 text-caption font-extrabold text-accent shadow-sm">
           Destaque
         </span>
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-3 sm:flex sm:gap-4">
-        {product.gallery.map((image, index) => (
+      {images.length > 0 ? (
+        <div className="mt-5 grid grid-cols-3 gap-3 sm:flex sm:gap-4">
+        {images.map((image, index) => (
           <button
             aria-label={`Ver imagem ${index + 1} de ${product.name}`}
             className={`aspect-square overflow-hidden rounded-lg border bg-surface-image sm:h-20 sm:w-20 ${
-              image === selectedImage ? "border-primary" : "border-border-muted"
+              image === currentImage ? "border-primary" : "border-border-muted"
             }`}
             key={image}
             onClick={() => setSelectedImage(image)}
@@ -85,7 +95,8 @@ function ProductGallery({ product }: { product: Product }) {
             <img alt="" className="h-full w-full object-cover" src={image} />
           </button>
         ))}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -100,25 +111,10 @@ function ProductDetails({
   const instructionsId = useId();
   const [instructions, setInstructions] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [selectedExtras, setSelectedExtras] = useState<ProductExtra[]>([]);
-  const itemTotalCents =
-    (product.priceCents +
-      selectedExtras.reduce((total, extra) => total + extra.priceCents, 0)) *
-    quantity;
-
-  function toggleExtra(extra: ProductExtra) {
-    setSelectedExtras((currentExtras) => {
-      if (currentExtras.some((currentExtra) => currentExtra.name === extra.name)) {
-        return currentExtras.filter((currentExtra) => currentExtra.name !== extra.name);
-      }
-
-      return [...currentExtras, extra];
-    });
-  }
+  const itemTotalCents = product.priceCents * quantity;
 
   function addCurrentSelectionToCart() {
     onAddToCart(product, {
-      extras: selectedExtras,
       instructions,
       quantity,
     });
@@ -157,34 +153,6 @@ function ProductDetails({
       <Separator.Root className="my-7 h-px bg-border-muted" />
 
       <section>
-        <h3 className="text-card-title font-extrabold text-text-strong">Adicionais</h3>
-        <div className="mt-4 space-y-3">
-          {product.extras.map((extra) => (
-            <label
-              className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-transparent px-3 py-2 text-body-sm font-medium text-text-muted transition hover:border-border-muted hover:bg-white"
-              key={extra.name}
-            >
-              <span className="flex items-center gap-3">
-                <input
-                  checked={selectedExtras.some(
-                    (selectedExtra) => selectedExtra.name === extra.name,
-                  )}
-                  className="h-4 w-4 accent-primary"
-                  name={`extra-${product.name}`}
-                  onChange={() => toggleExtra(extra)}
-                  type="checkbox"
-                />
-                {extra.name}
-              </span>
-              <span className="font-bold text-accent">
-                +{formatCurrency(extra.priceCents)}
-              </span>
-            </label>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-7">
         <label
           className="text-card-title font-extrabold text-text-strong"
           htmlFor={instructionsId}

@@ -9,13 +9,7 @@ export type MenuCategory = {
   active?: boolean;
 };
 
-export type ProductCategory =
-  | "burgers"
-  | "combos"
-  | "sides"
-  | "drinks"
-  | "milkshakes"
-  | "desserts";
+export type ProductCategory = string;
 
 export type Product = {
   id: string;
@@ -30,25 +24,18 @@ export type Product = {
   imageUrl: string;
   detailImageUrl: string;
   gallery: string[];
-  extras: ProductExtra[];
 };
 
 export type OrderItem = {
   id: string;
+  productId: string;
   quantity: number;
   name: string;
   unitPriceCents: number;
-  extras: ProductExtra[];
   instructions: string;
 };
 
-export type ProductExtra = {
-  name: string;
-  priceCents: number;
-};
-
 export type AddToCartOptions = {
-  extras: ProductExtra[];
   instructions: string;
   quantity: number;
 };

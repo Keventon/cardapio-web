@@ -13,11 +13,13 @@ export function HeroBanner({ onAddToCart, product }: HeroBannerProps) {
         aria-label={`Ver detalhes de ${product.name}`}
         className="group relative block min-h-65 w-full overflow-hidden rounded-lg bg-hero-dark text-left shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(94,54,30,0.18)] sm:min-h-80.5"
       >
-        <img
-          alt={product.name}
-          className="absolute inset-0 h-full w-full object-cover opacity-75 transition duration-500 ease-out group-hover:scale-105"
-          src={product.detailImageUrl}
-        />
+        {product.detailImageUrl ? (
+          <img
+            alt={product.name}
+            className="absolute inset-0 h-full w-full object-cover opacity-75 transition duration-500 ease-out group-hover:scale-105"
+            src={product.detailImageUrl}
+          />
+        ) : null}
         <div className="absolute inset-0 bg-linear-to-r from-hero-wash/90 via-hero-glow/40 to-hero-end/80" />
         <div className="relative flex min-h-65 max-w-155 flex-col justify-center px-8 py-9 sm:min-h-80.5 sm:px-14">
           <span className="mb-5 w-fit rounded-full bg-badge-red px-3.5 py-1.5 text-caption font-extrabold text-white">
