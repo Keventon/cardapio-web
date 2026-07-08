@@ -64,6 +64,10 @@
   html {
     @apply font-sans;
     overflow-x: clip;
+    /* Without this, scroll anchoring compensates for the compact-header
+       height animation (CategoryNav) by moving scrollY on its own, creating
+       an endless expand/collapse loop near the collapse threshold. */
+    overflow-anchor: none;
     scroll-behavior: smooth;
   }
 
@@ -85,6 +89,38 @@
   .store-order-card--moved {
     animation: store-order-moved 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+
+  /* Right-side drawers (cart, profile, order details): slide in/out driven
+     by Radix's data-state; Radix keeps the panel mounted until the closed
+     animation finishes, so the exit slide is visible. */
+  .drawer-panel[data-state="open"] {
+    animation: drawer-slide-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .drawer-panel[data-state="closed"] {
+    animation: drawer-slide-out 220ms ease-in;
+  }
+
+  .drawer-overlay[data-state="open"] {
+    animation: drawer-fade-in 320ms ease;
+  }
+
+  .drawer-overlay[data-state="closed"] {
+    animation: drawer-fade-out 220ms ease;
+  }
+
+  /* Current segment of the client order-tracking progress bar: looping
+     shimmer sweep to signal the step is in progress. */
+  .order-step-current {
+    animation: order-step-sweep 1.6s ease-in-out infinite;
+    background-image: linear-gradient(
+      90deg,
+      var(--color-surface-pill),
+      var(--color-primary),
+      var(--color-surface-pill)
+    );
+    background-size: 200% 100%;
+  }
 }
 
 @keyframes store-order-enter {
@@ -96,6 +132,56 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-slide-out {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes drawer-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes order-step-sweep {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
   }
 }
 

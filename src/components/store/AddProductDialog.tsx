@@ -4,11 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Field } from "../forms/Field";
+import { Toggle } from "../Toggle";
 import {
   emptyStoreProductForm,
   storeProductSchema,
 } from "../../forms/storeProductForm";
 import type { StoreProductForm } from "../../forms/storeProductForm";
+import { useCloseDrawerOnBack } from "../../hooks/useCloseDrawerOnBack";
 import { createProduct, updateProduct } from "../../services/storeApi";
 import type { StoreProduct } from "../../types/storeMenu";
 import { formatCurrency, formatCurrencyInput, parseCurrencyToCents } from "../../utils/currency";
@@ -63,6 +65,10 @@ export function AddProductDialog({
     resolver: zodResolver(storeProductSchema),
   });
   const price = useWatch({ control, name: "price" });
+  const enabled = useWatch({ control, name: "enabled" });
+
+  useCloseDrawerOnBack({ isOpen: open, onClose: () => onOpenChange(false) });
+
   // Starts false (not `open`) so a dialog that mounts already open — like
   // the edit instance, which is only rendered while a product is selected —
   // still detects the "just opened" transition on its first render and
@@ -216,14 +222,18 @@ export function AddProductDialog({
               )}
             </div>
 
-            <label className="flex items-center gap-2 text-body-sm font-semibold text-text-strong">
-              <input
-                className="h-4 w-4 rounded border-border-input"
-                type="checkbox"
-                {...register("enabled")}
+            <div className="flex items-center gap-3">
+              <Toggle
+                checked={enabled}
+                label="Produto habilitado no cardápio"
+                onCheckedChange={(next) =>
+                  setValue("enabled", next, { shouldDirty: true })
+                }
               />
-              Produto habilitado no cardápio
-            </label>
+              <span className="text-body-sm font-semibold text-text-strong">
+                Produto habilitado no cardápio
+              </span>
+            </div>
 
             {error ? (
               <p className="text-caption font-bold text-danger">{error}</p>

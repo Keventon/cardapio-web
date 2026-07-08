@@ -29,6 +29,7 @@ import {
 } from "../../forms/profileForm";
 import type { AddressForm, ProfileForm } from "../../forms/profileForm";
 import { useCepLookup } from "../../hooks/useCepLookup";
+import { useCloseDrawerOnBack } from "../../hooks/useCloseDrawerOnBack";
 import { useUserClient } from "../../hooks/useUserClient";
 import type { Address } from "../../types/profile";
 import { notifyClientProfileChanged } from "../../utils/clientSession";
@@ -60,6 +61,7 @@ export function ProfileDialog({
   triggerLabel,
 }: ProfileDialogProps) {
   const { clearSession, session, setSession } = useUserClient();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authError, setAuthError] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
@@ -71,6 +73,11 @@ export function ProfileDialog({
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
+
+  useCloseDrawerOnBack({
+    isOpen: isDrawerOpen,
+    onClose: () => setIsDrawerOpen(false),
+  });
   const {
     formState: { errors: loginErrors },
     handleSubmit: handleLoginSubmit,
@@ -422,7 +429,7 @@ export function ProfileDialog({
   }
 
   return (
-    <Dialog.Root>
+    <Dialog.Root onOpenChange={setIsDrawerOpen} open={isDrawerOpen}>
       <Dialog.Trigger asChild>
         <button
           aria-label={triggerLabel ?? "Abrir perfil"}
@@ -435,8 +442,8 @@ export function ProfileDialog({
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
-        <Dialog.Content className="fixed right-0 top-0 z-50 flex h-dvh w-full max-w-125 flex-col bg-surface shadow-[-20px_0_45px_rgba(44,29,22,0.25)] focus:outline-none">
+        <Dialog.Overlay className="drawer-overlay fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
+        <Dialog.Content className="drawer-panel fixed right-0 top-0 z-50 flex h-dvh w-full max-w-125 flex-col bg-surface shadow-[-20px_0_45px_rgba(44,29,22,0.25)] focus:outline-none">
           <header className="flex items-start justify-between border-b border-border px-6 py-5">
             <div>
               <Dialog.Title className="flex items-center gap-2 text-card-title font-extrabold text-text-main">

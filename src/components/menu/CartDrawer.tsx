@@ -8,7 +8,9 @@ import {
 } from "@radix-ui/react-icons";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Separator from "@radix-ui/react-separator";
+import { useState } from "react";
 import type { ReactNode } from "react";
+import { useCloseDrawerOnBack } from "../../hooks/useCloseDrawerOnBack";
 import type { OrderItem } from "../../types/menu";
 import { formatCurrency, getOrderItemTotalCents } from "../../utils/currency";
 import { ProfileDialog } from "../profile/ProfileDialog";
@@ -35,13 +37,16 @@ export function CartDrawer({
   totalCents,
 }: CartDrawerProps) {
   const hasItems = items.length > 0;
+  const [open, setOpen] = useState(false);
+
+  useCloseDrawerOnBack({ isOpen: open, onClose: () => setOpen(false) });
 
   return (
-    <Dialog.Root>
+    <Dialog.Root onOpenChange={setOpen} open={open}>
       {children}
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px]" />
-        <Dialog.Content className="fixed right-0 top-0 z-50 flex h-dvh w-full max-w-107.5 flex-col bg-surface shadow-[-20px_0_45px_rgba(44,29,22,0.25)] focus:outline-none">
+        <Dialog.Overlay className="drawer-overlay fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px]" />
+        <Dialog.Content className="drawer-panel fixed right-0 top-0 z-50 flex h-dvh w-full max-w-107.5 flex-col bg-surface shadow-[-20px_0_45px_rgba(44,29,22,0.25)] focus:outline-none">
           <header className="flex items-center justify-between border-b border-border px-6 py-5">
             <div>
               <Dialog.Title className="flex items-center gap-2 text-card-title font-extrabold text-text-main">
@@ -115,17 +120,19 @@ export function CartDrawer({
             </div>
 
             {isClientAuthenticated ? (
-              <Dialog.Close asChild>
-                <button
-                  className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"
-                  disabled={!hasItems}
-                  onClick={onCheckout}
-                  type="button"
-                >
-                  Finalizar Pedido
-                  <ArrowRightIcon className="h-4 w-4" />
-                </button>
-              </Dialog.Close>
+              // Deliberately NOT wrapped in Dialog.Close: closing here would
+              // pop the drawer's history sentinel in the same tick as the
+              // (transition-deferred) navigation to /checkout and cancel it.
+              // The drawer unmounts with the route change anyway.
+              <button
+                className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"
+                disabled={!hasItems}
+                onClick={onCheckout}
+                type="button"
+              >
+                Finalizar Pedido
+                <ArrowRightIcon className="h-4 w-4" />
+              </button>
             ) : (
               <ProfileDialog
                 triggerClassName="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary text-button font-extrabold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border-input"

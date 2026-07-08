@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { CheckoutPage } from "./components/checkout/CheckoutPage";
 import { Footer } from "./components/layout/Footer";
 import { CartDrawer } from "./components/menu/CartDrawer";
 import { CategoryNav } from "./components/menu/CategoryNav";
@@ -19,31 +18,49 @@ import {
   selectCartTotalCents,
   useCartStore,
 } from "./stores/cartStore";
-import type { MenuCategory, Product } from "./types/menu";
+import type { AddToCartOptions, MenuCategory, Product } from "./types/menu";
+
+type CachedMenu = {
+  categories: MenuCategory[];
+  products: Product[];
+  storeId: string;
+  storeName: string;
+};
+
+// Keeps the last loaded menu per slug so coming back from /checkout (a
+// separate route that remounts this component) doesn't flash the loading
+// screen; the effect still revalidates in the background.
+const menuCache = new Map<string, CachedMenu>();
 
 function ClientApp() {
   const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated: isClientAuthenticated } = useUserClient();
-  const [currentScreen, setCurrentScreen] = useState<"menu" | "checkout">(
-    "menu",
-  );
+  const cachedMenu = slug ? menuCache.get(slug) : undefined;
   const [searchQuery, setSearchQuery] = useState("");
   const [showFloatingCart, setShowFloatingCart] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [menuCategories, setMenuCategories] = useState<MenuCategory[]>([]);
-  const [menuProducts, setMenuProducts] = useState<Product[]>([]);
-  const [storeId, setStoreId] = useState("");
-  const [storeName, setStoreName] = useState("");
+  const [isLoading, setIsLoading] = useState(!cachedMenu);
+  const [menuCategories, setMenuCategories] = useState<MenuCategory[]>(
+    cachedMenu?.categories ?? [],
+  );
+  const [menuProducts, setMenuProducts] = useState<Product[]>(
+    cachedMenu?.products ?? [],
+  );
+  const [storeId, setStoreId] = useState(cachedMenu?.storeId ?? "");
+  const [storeName, setStoreName] = useState(cachedMenu?.storeName ?? "");
   const [menuError, setMenuError] = useState("");
   const [isMenuOffline, setIsMenuOffline] = useState(false);
+  const [showCartClearedNotice, setShowCartClearedNotice] = useState(false);
+  const [addedToCartNotice, setAddedToCartNotice] = useState("");
+  const addedNoticeTimeoutRef = useRef<number | undefined>(undefined);
   const { activeCategory, setActiveCategory } = useActiveCategory({
     categories: menuCategories,
-    enabled: !isLoading && currentScreen === "menu",
+    enabled: !isLoading,
   });
   const addToCart = useCartStore((state) => state.addItem);
   const cartCount = useCartStore(selectCartCount);
   const cartItems = useCartStore((state) => state.items);
-  const clearCart = useCartStore((state) => state.clear);
   const decrementCartItem = useCartStore((state) => state.decrementItem);
   const incrementCartItem = useCartStore((state) => state.incrementItem);
   const orderTotalCents = useCartStore(selectCartTotalCents);
@@ -63,6 +80,7 @@ function ClientApp() {
   useEffect(() => {
     let isMounted = true;
     let retryTimeout: number | undefined;
+    let noticeTimeout: number | undefined;
 
     async function loadMenu() {
       try {
@@ -71,6 +89,25 @@ function ClientApp() {
 
         if (!isMounted) {
           return;
+        }
+
+        // The cart belongs to one store at a time: entering another store's
+        // menu discards the previous items, with a notice to the customer.
+        if (slug && useCartStore.getState().claimStore(slug)) {
+          setShowCartClearedNotice(true);
+          noticeTimeout = window.setTimeout(
+            () => setShowCartClearedNotice(false),
+            6000,
+          );
+        }
+
+        if (slug) {
+          menuCache.set(slug, {
+            categories: mappedMenu.categories,
+            products: mappedMenu.products,
+            storeId: mappedMenu.store.id,
+            storeName: mappedMenu.store.name,
+          });
         }
 
         setMenuCategories(mappedMenu.categories);
@@ -96,8 +133,23 @@ function ClientApp() {
     return () => {
       isMounted = false;
       window.clearTimeout(retryTimeout);
+      window.clearTimeout(noticeTimeout);
     };
   }, [slug]);
+
+  function handleAddToCart(product: Product, options: AddToCartOptions) {
+    addToCart(product, options);
+    setAddedToCartNotice(`${options.quantity}x ${product.name}`);
+    window.clearTimeout(addedNoticeTimeoutRef.current);
+    addedNoticeTimeoutRef.current = window.setTimeout(
+      () => setAddedToCartNotice(""),
+      2500,
+    );
+  }
+
+  useEffect(() => {
+    return () => window.clearTimeout(addedNoticeTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     function handleScroll() {
@@ -123,30 +175,24 @@ function ClientApp() {
     );
   }
 
-  if (currentScreen === "checkout") {
-    return (
-      <Tooltip.Provider delayDuration={120}>
-        <CheckoutPage
-          items={cartItems}
-          onBack={() => setCurrentScreen("menu")}
-          onOrderConfirmed={() => {
-            clearCart();
-            setCurrentScreen("menu");
-          }}
-          storeId={storeId}
-          totalCents={orderTotalCents}
-        />
-      </Tooltip.Provider>
-    );
-  }
-
   return (
     <Tooltip.Provider delayDuration={120}>
       <CartDrawer
         isClientAuthenticated={isClientAuthenticated}
         items={cartItems}
         onDecrementItem={decrementCartItem}
-        onCheckout={() => setCurrentScreen("checkout")}
+        onCheckout={() =>
+          navigate(`/${slug}/checkout`, {
+            // The cart drawer is open, so the top history entry is its
+            // sentinel (see DrawerBackHandler); replacing it keeps a single
+            // back press from checkout to the menu.
+            replace: Boolean(
+              (location.state as { drawerDepth?: number } | null)
+                ?.drawerDepth,
+            ),
+            state: { storeId },
+          })
+        }
         onIncrementItem={incrementCartItem}
         onRemoveItem={removeCartItem}
         totalCents={orderTotalCents}
@@ -165,11 +211,14 @@ function ClientApp() {
 
             <main className="relative flex-1 bg-surface px-5 py-6 sm:px-8 lg:px-16 lg:py-7">
               {searchQuery.trim() || !menuProducts[0] ? null : (
-                <HeroBanner onAddToCart={addToCart} product={menuProducts[0]} />
+                <HeroBanner
+                  onAddToCart={handleAddToCart}
+                  product={menuProducts[0]}
+                />
               )}
               <PopularSection
                 categories={menuCategories}
-                onAddToCart={addToCart}
+                onAddToCart={handleAddToCart}
                 products={filteredProducts}
                 searchQuery={searchQuery}
               />
@@ -179,6 +228,19 @@ function ClientApp() {
             <FloatingCartButton count={cartCount} visible={showFloatingCart} />
           </div>
         </div>
+
+        <StatusToast
+          message="Você entrou em outra loja, então os itens do carrinho anterior foram removidos."
+          title="Carrinho esvaziado"
+          visible={showCartClearedNotice}
+        />
+
+        <StatusToast
+          message={`${addedToCartNotice} foi adicionado ao seu pedido.`}
+          title="Item adicionado ao carrinho"
+          variant="success"
+          visible={Boolean(addedToCartNotice)}
+        />
       </CartDrawer>
     </Tooltip.Provider>
   );

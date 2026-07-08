@@ -19,6 +19,7 @@ import type {
 } from "../../types/storeOrder";
 import { formatCurrency } from "../../utils/currency";
 import { getStoreOrders, updateStoreOrderStatus } from "../../services/storeApi";
+import { useCloseDrawerOnBack } from "../../hooks/useCloseDrawerOnBack";
 import { useStoreOrdersStream } from "../../hooks/useStoreOrdersStream";
 import { useStoreAuthStore } from "../../stores/storeAuthStore";
 import { StoreSidebar } from "./StoreSidebar";
@@ -459,9 +460,15 @@ function StoreOrderCard({
 }) {
   const primaryAction = getPrimaryAction(order);
   const secondaryAction = getSecondaryAction(order);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  useCloseDrawerOnBack({
+    isOpen: isDetailsOpen,
+    onClose: () => setIsDetailsOpen(false),
+  });
 
   return (
-    <Dialog.Root>
+    <Dialog.Root onOpenChange={setIsDetailsOpen} open={isDetailsOpen}>
       <article
         className={`store-order-card rounded-lg border border-border-light border-l-4 bg-white p-4 shadow-[0_12px_28px_rgba(94,54,30,0.08)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(94,54,30,0.12)] ${borderColorByStatus[order.status]} ${
           isMoving ? "store-order-card--moved" : ""

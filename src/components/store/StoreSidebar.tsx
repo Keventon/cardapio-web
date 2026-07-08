@@ -1,4 +1,4 @@
-import { BackpackIcon, Cross2Icon, IdCardIcon } from "@radix-ui/react-icons";
+import { BackpackIcon, ExitIcon, IdCardIcon } from "@radix-ui/react-icons";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useStoreAuthStore } from "../../stores/storeAuthStore";
@@ -27,11 +27,11 @@ export function StoreSidebar({ onLogout }: StoreSidebarProps) {
         </div>
         <button
           aria-label="Sair"
-          className="ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-full text-text-muted transition hover:bg-surface-checkout xl:hidden"
+          className="ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-full text-text-muted transition hover:bg-surface-checkout"
           onClick={onLogout}
           type="button"
         >
-          <Cross2Icon className="h-5 w-5" />
+          <ExitIcon className="h-5 w-5" />
         </button>
       </div>
 
@@ -60,17 +60,6 @@ export function StoreSidebar({ onLogout }: StoreSidebarProps) {
           </a>
         ) : null}
       </nav>
-
-      <div className="hidden border-t border-border-light p-4 xl:mt-auto xl:block">
-        <button
-          className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-body-sm font-extrabold text-text-muted transition hover:bg-surface-checkout"
-          onClick={onLogout}
-          type="button"
-        >
-          <Cross2Icon className="h-5 w-5" />
-          Sair
-        </button>
-      </div>
     </aside>
   );
 }

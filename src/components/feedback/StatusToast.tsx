@@ -1,15 +1,24 @@
-import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import { CheckIcon, ExclamationTriangleIcon } from "@radix-ui/react-icons";
 
 type StatusToastProps = {
   message: string;
   title: string;
+  variant?: "danger" | "success";
   visible: boolean;
 };
 
-export function StatusToast({ message, title, visible }: StatusToastProps) {
+export function StatusToast({
+  message,
+  title,
+  variant = "danger",
+  visible,
+}: StatusToastProps) {
   if (!visible) {
     return null;
   }
+
+  const isSuccess = variant === "success";
+  const Icon = isSuccess ? CheckIcon : ExclamationTriangleIcon;
 
   return (
     <div
@@ -18,8 +27,14 @@ export function StatusToast({ message, title, visible }: StatusToastProps) {
       role="status"
     >
       <div className="flex gap-3">
-        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-red-100 text-danger">
-          <ExclamationTriangleIcon className="h-4 w-4" />
+        <span
+          className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${
+            isSuccess
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-red-100 text-danger"
+          }`}
+        >
+          <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
           <p className="text-body-sm font-extrabold text-text-strong">{title}</p>

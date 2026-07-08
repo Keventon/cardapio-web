@@ -1,5 +1,6 @@
 import {
   BackpackIcon,
+  ClipboardIcon,
   MagnifyingGlassIcon,
   StarFilledIcon,
 } from "@radix-ui/react-icons";
@@ -7,9 +8,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
+import { Link } from "react-router-dom";
 import type { MenuCategory } from "../../types/menu";
 import { BurgerIcon } from "../icons/BurgerIcon";
-import { OrderHistoryDrawer } from "../orders/OrderHistoryDrawer";
 import { ProfileDialog } from "../profile/ProfileDialog";
 
 const COMPACT_HEADER_SCROLL_START = 190;
@@ -90,8 +91,8 @@ export function CategoryNav({
               }`}
             >
               <div className="min-w-0">
-                <a className="inline-flex" href="#menu">
-                  <span className="inline-flex items-center gap-2 text-brand font-extrabold leading-tight text-primary-dark">
+                <a className="flex max-w-full" href="#menu">
+                  <span className="flex min-w-0 max-w-full items-center gap-2 text-brand font-extrabold leading-tight text-primary-dark">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-soft text-primary-dark">
                       <BurgerIcon className="h-5 w-5" />
                     </span>
@@ -132,7 +133,13 @@ export function CategoryNav({
                   </button>
                 </Dialog.Trigger>
 
-                <OrderHistoryDrawer />
+                <Link
+                  aria-label="Meus pedidos"
+                  className="grid h-10 w-10 place-items-center rounded-full transition hover:bg-surface-hover"
+                  to="pedidos"
+                >
+                  <ClipboardIcon className="h-5 w-5" />
+                </Link>
 
                 <ProfileDialog />
               </div>

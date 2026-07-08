@@ -10,6 +10,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as Separator from "@radix-ui/react-separator";
 import { useId, useState } from "react";
 import type { ReactNode } from "react";
+import { useCloseDrawerOnBack } from "../../hooks/useCloseDrawerOnBack";
 import type { AddToCartOptions, Product } from "../../types/menu";
 import { formatCurrency } from "../../utils/currency";
 import { BrandLogo } from "../brand/BrandLogo";
@@ -25,8 +26,12 @@ export function ProductDetailDialog({
   onAddToCart,
   product,
 }: ProductDetailDialogProps) {
+  const [open, setOpen] = useState(false);
+
+  useCloseDrawerOnBack({ isOpen: open, onClose: () => setOpen(false) });
+
   return (
-    <Dialog.Root>
+    <Dialog.Root onOpenChange={setOpen} open={open}>
       <Dialog.Trigger asChild>{children}</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]" />

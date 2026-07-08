@@ -2,74 +2,102 @@ import { Cross2Icon } from "@radix-ui/react-icons";
 import * as Dialog from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { Field } from "../forms/Field";
+import { Toggle } from "../Toggle";
 import {
   emptyStoreCategoryForm,
   storeCategorySchema,
 } from "../../forms/storeCategoryForm";
 import type { StoreCategoryForm } from "../../forms/storeCategoryForm";
-import { createCategory } from "../../services/storeApi";
+import { useCloseDrawerOnBack } from "../../hooks/useCloseDrawerOnBack";
+import { createCategory, updateCategory } from "../../services/storeApi";
 import type { StoreCategory } from "../../types/storeMenu";
 
 type AddCategoryDialogProps = {
-  onCreated: (category: StoreCategory) => void;
+  category?: StoreCategory;
   onOpenChange: (open: boolean) => void;
+  onSaved: (category: StoreCategory) => void;
   open: boolean;
 };
 
+function categoryToFormValues(category: StoreCategory): StoreCategoryForm {
+  return {
+    enabled: category.enabled,
+    name: category.name,
+  };
+}
+
 export function AddCategoryDialog({
-  onCreated,
+  category,
   onOpenChange,
+  onSaved,
   open,
 }: AddCategoryDialogProps) {
+  const isEditing = Boolean(category);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const {
+    control,
     formState: { errors },
     handleSubmit,
     register,
     reset,
+    setValue,
   } = useForm<StoreCategoryForm>({
-    defaultValues: emptyStoreCategoryForm,
+    defaultValues: category
+      ? categoryToFormValues(category)
+      : emptyStoreCategoryForm,
     resolver: zodResolver(storeCategorySchema),
   });
+  const enabled = useWatch({ control, name: "enabled" });
+
+  useCloseDrawerOnBack({ isOpen: open, onClose: () => onOpenChange(false) });
+
+  // Re-syncs the form when the dialog re-opens: the create instance is
+  // reused across opens, and the edit instance mounts already open, so both
+  // need the values reset from the current `category` on the open edge.
+  const [wasOpen, setWasOpen] = useState(false);
+
+  if (open !== wasOpen) {
+    setWasOpen(open);
+
+    if (open) {
+      reset(category ? categoryToFormValues(category) : emptyStoreCategoryForm);
+      setError("");
+    }
+  }
 
   async function handleValidSubmit(form: StoreCategoryForm) {
     setIsSubmitting(true);
     setError("");
 
     try {
-      const category = await createCategory(form);
+      const savedCategory = category
+        ? await updateCategory(category.id, form)
+        : await createCategory(form);
 
-      onCreated(category);
-      reset(emptyStoreCategoryForm);
+      onSaved(savedCategory);
       onOpenChange(false);
     } catch {
-      setError("Não foi possível criar a categoria. Tente novamente.");
+      setError(
+        isEditing
+          ? "Não foi possível salvar as alterações. Tente novamente."
+          : "Não foi possível criar a categoria. Tente novamente.",
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <Dialog.Root
-      onOpenChange={(nextOpen) => {
-        onOpenChange(nextOpen);
-
-        if (!nextOpen) {
-          setError("");
-          reset(emptyStoreCategoryForm);
-        }
-      }}
-      open={open}
-    >
+    <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,430px)] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-2xl focus:outline-none">
           <div className="flex items-start justify-between gap-5">
             <Dialog.Title className="text-section-title font-extrabold leading-tight text-text-strong">
-              Nova categoria
+              {isEditing ? "Editar categoria" : "Nova categoria"}
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
@@ -94,14 +122,18 @@ export function AddCategoryDialog({
               registration={register("name")}
             />
 
-            <label className="flex items-center gap-2 text-body-sm font-semibold text-text-strong">
-              <input
-                className="h-4 w-4 rounded border-border-input"
-                type="checkbox"
-                {...register("enabled")}
+            <div className="flex items-center gap-3">
+              <Toggle
+                checked={enabled}
+                label="Categoria habilitada no cardápio"
+                onCheckedChange={(next) =>
+                  setValue("enabled", next, { shouldDirty: true })
+                }
               />
-              Categoria habilitada no cardápio
-            </label>
+              <span className="text-body-sm font-semibold text-text-strong">
+                Categoria habilitada no cardápio
+              </span>
+            </div>
 
             {error ? (
               <p className="text-caption font-bold text-danger">{error}</p>
@@ -112,7 +144,13 @@ export function AddCategoryDialog({
               disabled={isSubmitting}
               type="submit"
             >
-              {isSubmitting ? "Criando..." : "Criar categoria"}
+              {isSubmitting
+                ? isEditing
+                  ? "Salvando..."
+                  : "Criando..."
+                : isEditing
+                  ? "Salvar alterações"
+                  : "Criar categoria"}
             </button>
           </form>
         </Dialog.Content>

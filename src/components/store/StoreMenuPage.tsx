@@ -1,11 +1,26 @@
-import { BackpackIcon, Pencil2Icon, PlusIcon } from "@radix-ui/react-icons";
-import { useEffect, useState } from "react";
+import {
+  BackpackIcon,
+  DragHandleDots2Icon,
+  Pencil2Icon,
+  PlusIcon,
+} from "@radix-ui/react-icons";
+import { useEffect, useRef, useState } from "react";
 import { AddCategoryDialog } from "./AddCategoryDialog";
 import { AddProductDialog } from "./AddProductDialog";
+import { ReorderMenuDrawer } from "./ReorderMenuDrawer";
+import type { ReorderSaveStatus } from "./ReorderMenuDrawer";
 import { StoreSidebar } from "./StoreSidebar";
-import { getStoreProducts } from "../../services/storeApi";
+import { StatusToast } from "../feedback/StatusToast";
+import { Toggle } from "../Toggle";
+import {
+  getStoreProducts,
+  reorderCategories,
+  reorderProducts,
+  updateCategory,
+} from "../../services/storeApi";
 import { useStoreAuthStore } from "../../stores/storeAuthStore";
 import type {
+  StoreCategory,
   StoreCategoryWithProducts,
   StoreProduct,
 } from "../../types/storeMenu";
@@ -21,9 +36,169 @@ export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] =
+    useState<StoreCategoryWithProducts | null>(null);
   const [editingProduct, setEditingProduct] = useState<StoreProduct | null>(
     null,
   );
+  const [toggleError, setToggleErrorState] = useState("");
+  const toggleErrorTimeoutRef = useRef<number | undefined>(undefined);
+  const [isReorderOpen, setIsReorderOpen] = useState(false);
+  const [reorderStatus, setReorderStatus] = useState<ReorderSaveStatus>("idle");
+  const categoriesRef = useRef(categories);
+  const reorderTimersRef = useRef(new Map<string, number>());
+  const reorderStatusTimeoutRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    categoriesRef.current = categories;
+  });
+
+  function setToggleError(message: string) {
+    setToggleErrorState(message);
+    window.clearTimeout(toggleErrorTimeoutRef.current);
+
+    if (message) {
+      toggleErrorTimeoutRef.current = window.setTimeout(
+        () => setToggleErrorState(""),
+        5000,
+      );
+    }
+  }
+
+  // Persists the current order for one scope ("categories" or
+  // "product:<categoryId>"), reading the latest order from the ref so
+  // coalesced moves send only the final arrangement.
+  function flushReorder(key: string) {
+    const current = categoriesRef.current;
+    const request =
+      key === "categories"
+        ? reorderCategories(current.map((category) => category.id))
+        : (() => {
+            const categoryId = key.slice("product:".length);
+            const category = current.find((item) => item.id === categoryId);
+
+            return category
+              ? reorderProducts(
+                  categoryId,
+                  category.products.map((product) => product.id),
+                )
+              : Promise.resolve();
+          })();
+
+    request
+      .then(() => {
+        if (reorderTimersRef.current.size === 0) {
+          setReorderStatus("saved");
+          window.clearTimeout(reorderStatusTimeoutRef.current);
+          reorderStatusTimeoutRef.current = window.setTimeout(
+            () => setReorderStatus("idle"),
+            2000,
+          );
+        }
+      })
+      .catch(() => {
+        setReorderStatus("error");
+        // A coalesced multi-move can't be cleanly reverted, so resync with
+        // the backend's truth instead.
+        getStoreProducts()
+          .then((data) => setCategories(data))
+          .catch(() => {});
+      });
+  }
+
+  const flushReorderRef = useRef(flushReorder);
+  useEffect(() => {
+    flushReorderRef.current = flushReorder;
+  });
+
+  useEffect(() => {
+    const timers = reorderTimersRef.current;
+    const statusTimeoutRef = reorderStatusTimeoutRef;
+
+    return () => {
+      // Flush anything still within the debounce window on unmount so a
+      // pending order change is never lost.
+      [...timers.keys()].forEach((key) => {
+        window.clearTimeout(timers.get(key));
+        timers.delete(key);
+        flushReorderRef.current(key);
+      });
+      window.clearTimeout(statusTimeoutRef.current);
+    };
+  }, []);
+
+  function scheduleReorderSave(key: string) {
+    setReorderStatus("saving");
+    window.clearTimeout(reorderStatusTimeoutRef.current);
+
+    const timers = reorderTimersRef.current;
+    window.clearTimeout(timers.get(key));
+    timers.set(
+      key,
+      window.setTimeout(() => {
+        timers.delete(key);
+        flushReorderRef.current(key);
+      }, 700),
+    );
+  }
+
+  function flushPendingReorders() {
+    const timers = reorderTimersRef.current;
+    [...timers.keys()].forEach((key) => {
+      window.clearTimeout(timers.get(key));
+      timers.delete(key);
+      flushReorderRef.current(key);
+    });
+  }
+
+  function moveCategory(categoryId: string, direction: -1 | 1) {
+    setCategories((current) => {
+      const index = current.findIndex((item) => item.id === categoryId);
+      const target = index + direction;
+
+      if (index < 0 || target < 0 || target >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+
+      return next;
+    });
+    scheduleReorderSave("categories");
+  }
+
+  function moveProduct(
+    categoryId: string,
+    productId: string,
+    direction: -1 | 1,
+  ) {
+    setCategories((current) =>
+      current.map((category) => {
+        if (category.id !== categoryId) {
+          return category;
+        }
+
+        const index = category.products.findIndex(
+          (item) => item.id === productId,
+        );
+        const target = index + direction;
+
+        if (index < 0 || target < 0 || target >= category.products.length) {
+          return category;
+        }
+
+        const products = [...category.products];
+        [products[index], products[target]] = [
+          products[target],
+          products[index],
+        ];
+
+        return { ...category, products };
+      }),
+    );
+    scheduleReorderSave(`product:${categoryId}`);
+  }
 
   useEffect(() => {
     let isIgnored = false;
@@ -49,6 +224,10 @@ export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
     return () => {
       isIgnored = true;
     };
+  }, []);
+
+  useEffect(() => {
+    return () => window.clearTimeout(toggleErrorTimeoutRef.current);
   }, []);
 
   function handleLogout() {
@@ -79,7 +258,50 @@ export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
     );
   }
 
-  const editingCategory = editingProduct
+  function handleCategorySaved(saved: StoreCategory) {
+    setCategories((current) => {
+      const alreadyExists = current.some((category) => category.id === saved.id);
+
+      return alreadyExists
+        ? current.map((category) =>
+            category.id === saved.id
+              ? { ...category, ...saved }
+              : category,
+          )
+        : [...current, { ...saved, products: [] }];
+    });
+  }
+
+  function setCategoryEnabled(categoryId: string, enabled: boolean) {
+    setCategories((current) =>
+      current.map((category) =>
+        category.id === categoryId ? { ...category, enabled } : category,
+      ),
+    );
+  }
+
+  async function handleToggleCategory(
+    category: StoreCategoryWithProducts,
+    nextEnabled: boolean,
+  ) {
+    // Optimistic flip; revert and warn if the request fails.
+    setCategoryEnabled(category.id, nextEnabled);
+    setToggleError("");
+
+    try {
+      await updateCategory(category.id, {
+        enabled: nextEnabled,
+        name: category.name,
+      });
+    } catch {
+      setCategoryEnabled(category.id, category.enabled);
+      setToggleError(
+        `Não foi possível ${nextEnabled ? "ativar" : "desativar"} a categoria "${category.name}".`,
+      );
+    }
+  }
+
+  const productEditCategory = editingProduct
     ? categories.find((category) => category.id === editingProduct.categoryId)
     : undefined;
 
@@ -98,14 +320,26 @@ export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
                 Categorias e produtos da sua loja.
               </p>
             </div>
-            <button
-              className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-primary px-4 text-caption font-extrabold text-white transition hover:bg-primary-hover"
-              onClick={() => setIsAddCategoryOpen(true)}
-              type="button"
-            >
-              <PlusIcon className="h-4 w-4" />
-              Adicionar categoria
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {categories.length > 1 ? (
+                <button
+                  className="flex h-10 items-center gap-2 rounded-lg border border-border-input bg-white px-4 text-caption font-extrabold text-primary-dark transition hover:bg-surface-hover"
+                  onClick={() => setIsReorderOpen(true)}
+                  type="button"
+                >
+                  <DragHandleDots2Icon className="h-4 w-4" />
+                  Reordenar
+                </button>
+              ) : null}
+              <button
+                className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-caption font-extrabold text-white transition hover:bg-primary-hover"
+                onClick={() => setIsAddCategoryOpen(true)}
+                type="button"
+              >
+                <PlusIcon className="h-4 w-4" />
+                Adicionar categoria
+              </button>
+            </div>
           </header>
 
           {isLoading ? (
@@ -142,8 +376,10 @@ export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
                 <CategorySection
                   category={category}
                   key={category.id}
+                  onEditCategory={setEditingCategory}
                   onEditProduct={setEditingProduct}
                   onProductSaved={handleProductSaved}
+                  onToggleCategory={handleToggleCategory}
                 />
               ))}
             </div>
@@ -152,63 +388,124 @@ export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
       </div>
 
       <AddCategoryDialog
-        onCreated={(category) =>
-          setCategories((current) => [
-            ...current,
-            { ...category, products: [] },
-          ])
-        }
         onOpenChange={setIsAddCategoryOpen}
+        onSaved={handleCategorySaved}
         open={isAddCategoryOpen}
       />
 
-      {editingProduct && editingCategory ? (
+      {editingCategory ? (
+        <AddCategoryDialog
+          category={editingCategory}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              setEditingCategory(null);
+            }
+          }}
+          onSaved={handleCategorySaved}
+          open={Boolean(editingCategory)}
+        />
+      ) : null}
+
+      {editingProduct && productEditCategory ? (
         <AddProductDialog
-          categoryId={editingCategory.id}
-          categoryName={editingCategory.name}
+          categoryId={productEditCategory.id}
+          categoryName={productEditCategory.name}
           onOpenChange={(nextOpen) => {
             if (!nextOpen) {
               setEditingProduct(null);
             }
           }}
-          onSaved={(product) => handleProductSaved(editingCategory.id, product)}
+          onSaved={(product) =>
+            handleProductSaved(productEditCategory.id, product)
+          }
           open={Boolean(editingProduct)}
           product={editingProduct}
         />
       ) : null}
+
+      <ReorderMenuDrawer
+        categories={categories}
+        onMoveCategory={moveCategory}
+        onMoveProduct={moveProduct}
+        onOpenChange={(nextOpen) => {
+          setIsReorderOpen(nextOpen);
+          if (!nextOpen) {
+            flushPendingReorders();
+          }
+        }}
+        open={isReorderOpen}
+        saveStatus={reorderStatus}
+      />
+
+      <StatusToast
+        message={toggleError}
+        title="Não foi possível atualizar"
+        visible={Boolean(toggleError)}
+      />
     </div>
   );
 }
 
 function CategorySection({
   category,
+  onEditCategory,
   onEditProduct,
   onProductSaved,
+  onToggleCategory,
 }: {
   category: StoreCategoryWithProducts;
+  onEditCategory: (category: StoreCategoryWithProducts) => void;
   onEditProduct: (product: StoreProduct) => void;
   onProductSaved: (categoryId: string, product: StoreProduct) => void;
+  onToggleCategory: (
+    category: StoreCategoryWithProducts,
+    nextEnabled: boolean,
+  ) => void;
 }) {
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
 
   return (
     <section>
       <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-price font-extrabold leading-tight text-text-strong">
-          {category.name}
-        </h2>
-        <span
-          className={`rounded px-2 py-1 text-micro font-extrabold uppercase ${
-            category.enabled
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-surface-soft text-text-muted"
+        <h2
+          className={`text-price font-extrabold leading-tight ${
+            category.enabled ? "text-text-strong" : "text-text-muted"
           }`}
         >
-          {category.enabled ? "Habilitada" : "Desabilitada"}
-        </span>
+          {category.name}
+        </h2>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <Toggle
+            checked={category.enabled}
+            label={`${category.enabled ? "Desativar" : "Ativar"} categoria ${category.name}`}
+            onCheckedChange={(nextEnabled) =>
+              onToggleCategory(category, nextEnabled)
+            }
+          />
+          <span
+            className={`w-12 text-caption font-extrabold ${
+              category.enabled ? "text-primary-dark" : "text-text-muted"
+            }`}
+          >
+            {category.enabled ? "Ativa" : "Inativa"}
+          </span>
+          <button
+            aria-label={`Editar categoria ${category.name}`}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-text-muted transition hover:bg-surface-hover"
+            onClick={() => onEditCategory(category)}
+            type="button"
+          >
+            <Pencil2Icon className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-white">
+      <div
+        className={`divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-white transition ${
+          category.enabled ? "" : "opacity-60"
+        }`}
+      >
         {category.products.length === 0 ? (
           <p className="p-4 text-body-sm font-medium text-text-muted">
             Nenhum produto cadastrado nesta categoria.

@@ -61,12 +61,16 @@ export type ApiOrder = {
     phone: string;
   };
   createdAt?: string;
+  deliveryFee?: number;
+  discount?: number;
   fulfillmentType?: ApiFulfillmentType;
   id: string;
   items?: ApiOrderItem[];
   number: number;
+  observation?: string | null;
   paymentMethod?: ApiPaymentMethod;
   status: ApiOrderStatus;
+  subtotal?: number;
   store?: {
     id: string;
     logoUrl: string | null;
@@ -81,7 +85,8 @@ export type ApiOrderItem = {
   observation: string | null;
   orderId: string;
   product?: {
-    id: string;
+    id?: string;
+    imageUrl?: string | null;
     name: string;
   };
   productId: string;

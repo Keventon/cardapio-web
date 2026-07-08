@@ -7,7 +7,7 @@ export function LoadingScreen() {
         <BrandLogo />
         <div className="mt-8 h-12 w-12 animate-spin rounded-full border-4 border-border-muted border-t-primary" />
         <p className="mt-5 text-body-sm font-semibold text-text-muted">
-          Carregando cardápio...
+          Carregando...
         </p>
       </div>
     </div>

@@ -75,6 +75,28 @@ export async function createCategory(payload: CreateCategoryPayload) {
   return data;
 }
 
+export async function updateCategory(
+  categoryId: string,
+  payload: CreateCategoryPayload,
+) {
+  const { data } = await api.put<StoreCategory>(
+    `store/categories/${categoryId}`,
+    payload,
+  );
+
+  return data;
+}
+
+export async function reorderCategories(orderedIds: string[]) {
+  await api.patch("store/categories/reorder", { orderedIds });
+}
+
+export async function reorderProducts(categoryId: string, orderedIds: string[]) {
+  await api.patch(`store/categories/${categoryId}/products/reorder`, {
+    orderedIds,
+  });
+}
+
 type CreateProductPayload = {
   description?: string;
   enabled?: boolean;
