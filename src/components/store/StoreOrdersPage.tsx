@@ -352,7 +352,7 @@ export function StoreOrdersPage({ onLogout }: StoreOrdersPageProps) {
               </div>
             </div>
           ) : (
-            <section className="grid gap-5 px-4 py-6 sm:grid-cols-2 sm:px-6 lg:px-8 xl:grid-cols-3 xl:py-8">
+            <section className="grid gap-5 px-4 py-6 grid-cols-[minmax(0,_1fr)] sm:grid-cols-[repeat(2,_minmax(0,_1fr))] lg:px-8 xl:grid-cols-[repeat(3,_minmax(0,_1fr))] xl:py-8">
               {visibleColumns.map((column) => {
                 const columnOrders = filteredOrders.filter((order) =>
                   column.statuses.includes(order.status),
