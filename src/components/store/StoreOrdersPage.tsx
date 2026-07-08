@@ -469,72 +469,82 @@ function StoreOrderCard({
 
   return (
     <Dialog.Root onOpenChange={setIsDetailsOpen} open={isDetailsOpen}>
-      <article
-        className={`store-order-card rounded-lg border border-border-light border-l-4 bg-white p-4 shadow-[0_12px_28px_rgba(94,54,30,0.08)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(94,54,30,0.12)] ${borderColorByStatus[order.status]} ${
-          isMoving ? "store-order-card--moved" : ""
-        }`}
+  <article
+    className={`store-order-card w-full min-w-0 rounded-lg border border-border-light border-l-4 bg-white p-4 shadow-[0_12px_28px_rgba(94,54,30,0.08)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(94,54,30,0.12)] ${borderColorByStatus[order.status]} ${
+      isMoving ? "store-order-card--moved" : ""
+    }`}
+  >
+    <div className="flex items-start justify-between gap-4">
+      {/* Adicionado min-w-0 para evitar que o badge estoure */}
+      <span
+        className={`shrink-0 rounded px-2 py-1 text-micro font-extrabold uppercase ${statusBadgeClasses[order.status]}`}
       >
-        <div className="flex items-start justify-between gap-4">
-          <span
-            className={`rounded px-2 py-1 text-micro font-extrabold uppercase ${statusBadgeClasses[order.status]}`}
+        {statusLabels[order.status]}
+      </span>
+      <span className="shrink-0 text-caption font-semibold text-text-muted">
+        {formatOrderAge(order.createdAt)}
+      </span>
+    </div>
+
+    {/* Corrigido: break-words impede que nomes gigantes quebrem o layout */}
+    <h3 className="mt-3 text-[1rem] font-extrabold leading-tight text-text-strong break-words">
+      #{order.number} - {order.client.name}
+    </h3>
+    
+    <p className="mt-2 line-clamp-2 text-caption font-medium leading-relaxed text-text-muted sm:text-body-sm">
+      {getOrderSummary(order)}
+    </p>
+    
+    {/* Corrigido: block e w-full garantem que o truncate funcione sem empurrar o card */}
+    <p className="mt-2 block w-full truncate text-caption font-semibold text-text-muted">
+      {getAddressLine(order)}
+    </p>
+
+    <div className="my-3 h-px bg-border-muted" />
+
+    {/* Corrigido: Ajustado para mobile empilhar mais confortavelmente se faltar espaço */}
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+      <strong className="text-[1rem] font-extrabold text-text-strong shrink-0">
+        {formatCurrency(order.total)}
+      </strong>
+      
+      {/* Botões agora ocupam largura total no mobile extremo se necessário, ou quebram melhor */}
+      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
+        <Dialog.Trigger asChild>
+          <button
+            className="flex h-9 items-center gap-2 rounded-lg border border-border-input bg-white px-3 text-caption font-extrabold text-text-muted transition hover:bg-surface-checkout"
+            type="button"
           >
-            {statusLabels[order.status]}
-          </span>
-          <span className="text-caption font-semibold text-text-muted">
-            {formatOrderAge(order.createdAt)}
-          </span>
-        </div>
-
-        <h3 className="mt-3 text-[1rem] font-extrabold leading-tight text-text-strong">
-          #{order.number} - {order.client.name}
-        </h3>
-        <p className="mt-2 line-clamp-2 text-caption font-medium leading-relaxed text-text-muted sm:text-body-sm">
-          {getOrderSummary(order)}
-        </p>
-        <p className="mt-2 truncate text-caption font-semibold text-text-muted">
-          {getAddressLine(order)}
-        </p>
-
-        <div className="my-3 h-px bg-border-muted" />
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <strong className="text-[1rem] font-extrabold text-text-strong">
-            {formatCurrency(order.total)}
-          </strong>
-          <div className="flex flex-wrap gap-2">
-            <Dialog.Trigger asChild>
-              <button
-                className="flex h-9 items-center gap-2 rounded-lg border border-border-input bg-white px-3 text-caption font-extrabold text-text-muted transition hover:bg-surface-checkout"
-                type="button"
-              >
-                <EyeOpenIcon className="h-4 w-4" />
-                Detalhes
-              </button>
-            </Dialog.Trigger>
-            {secondaryAction ? (
-              <button
-                className="flex h-9 items-center gap-2 rounded-lg border border-danger/30 bg-white px-3 text-caption font-extrabold text-danger transition hover:bg-red-50"
-                onClick={() => onMoveOrder(order, secondaryAction.nextStatus)}
-                type="button"
-              >
-                {secondaryAction.label}
-              </button>
-            ) : null}
-            {primaryAction ? (
-              <button
-                className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-caption font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-primary-hover"
-                onClick={() => onMoveOrder(order, primaryAction.nextStatus)}
-                type="button"
-              >
-                {primaryAction.label}
-                <CheckIcon className="h-4 w-4" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </article>
-      <OrderDetailsDialog order={order} onMoveOrder={onMoveOrder} />
-    </Dialog.Root>
+            <EyeOpenIcon className="h-4 w-4" />
+            Detalhes
+          </button>
+        </Dialog.Trigger>
+        
+        {secondaryAction ? (
+          <button
+            className="flex h-9 items-center gap-2 rounded-lg border border-danger/30 bg-white px-3 text-caption font-extrabold text-danger transition hover:bg-red-50"
+            onClick={() => onMoveOrder(order, secondaryAction.nextStatus)}
+            type="button"
+          >
+            {secondaryAction.label}
+          </button>
+        ) : null}
+        
+        {primaryAction ? (
+          <button
+            className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-caption font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-primary-hover"
+            onClick={() => onMoveOrder(order, primaryAction.nextStatus)}
+            type="button"
+          >
+            {primaryAction.label}
+            <CheckIcon className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  </article>
+  <OrderDetailsDialog order={order} onMoveOrder={onMoveOrder} />
+</Dialog.Root>
   );
 }
 

@@ -323,21 +323,23 @@ export function StoreMenuPage({ onLogout }: StoreMenuPageProps) {
             <div className="flex shrink-0 items-center gap-2">
               {categories.length > 1 ? (
                 <button
-                  className="flex h-10 items-center gap-2 rounded-lg border border-border-input bg-white px-4 text-caption font-extrabold text-primary-dark transition hover:bg-surface-hover"
+                  aria-label="Reordenar cardápio"
+                  className="flex h-10 w-10 items-center justify-center gap-2 rounded-lg border border-border-input bg-white text-caption font-extrabold text-primary-dark transition hover:bg-surface-hover sm:w-auto sm:px-4"
                   onClick={() => setIsReorderOpen(true)}
                   type="button"
                 >
-                  <DragHandleDots2Icon className="h-4 w-4" />
-                  Reordenar
+                  <DragHandleDots2Icon className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Reordenar</span>
                 </button>
               ) : null}
               <button
-                className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-caption font-extrabold text-white transition hover:bg-primary-hover"
+                aria-label="Adicionar categoria"
+                className="flex h-10 w-10 items-center justify-center gap-2 rounded-lg bg-primary text-caption font-extrabold text-white transition hover:bg-primary-hover sm:w-auto sm:px-4"
                 onClick={() => setIsAddCategoryOpen(true)}
                 type="button"
               >
-                <PlusIcon className="h-4 w-4" />
-                Adicionar categoria
+                <PlusIcon className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Adicionar categoria</span>
               </button>
             </div>
           </header>
